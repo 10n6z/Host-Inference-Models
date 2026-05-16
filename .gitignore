@@ -1,0 +1,46 @@
+# Environment files
+.env
+servers/.env
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+venv/
+env/
+
+# Conda/env/cache
+.cache/
+.ipynb_checkpoints/
+
+# Model weights and caches
+models/
+*.safetensors
+*.ckpt
+*.bin
+*.pt
+*.pth
+*.onnx
+*.gguf
+
+# Generated outputs
+outputs/
+*.png
+*.jpg
+*.jpeg
+*.webp
+*.wav
+*.mp3
+*.mp4
+
+# Logs
+*.log
+logs/
+
+# OS/editor
+.DS_Store
+.vscode/
+.idea/
+
