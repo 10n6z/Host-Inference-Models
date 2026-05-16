@@ -9,8 +9,10 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from runners.text_to_image.flux_schnell import FluxSchnellRunner
+from runners.text_to_image.auraflow import AuraFlowRunner
+from runners.text_to_image.openflux import OpenFluxRunner
+from runners.text_to_image.sd35_medium import SD35MediumRunner
 from runners.text_to_speech.kokoro_runner import KokoroRunner
-
 
 BASE_DIR = Path(__file__).resolve().parent
 load_dotenv(BASE_DIR / ".env")
@@ -45,6 +47,9 @@ app.mount("/outputs", StaticFiles(directory=str(OUTPUT_ROOT)), name="outputs")
 
 
 flux_runner = FluxSchnellRunner()
+sd35_runner = SD35MediumRunner()
+auraflow_runner = AuraFlowRunner()
+openflux_runner = OpenFluxRunner()
 kokoro_runner = KokoroRunner()
 
 
@@ -53,6 +58,35 @@ class FluxRequest(BaseModel):
     width: int = Field(1024, ge=512, le=1024)
     height: int = Field(1024, ge=512, le=1024)
     steps: int = Field(4, ge=1, le=8)
+    seed: Optional[int] = None
+
+
+class SD35Request(BaseModel):
+    prompt: str = Field(..., min_length=1)
+    negative_prompt: Optional[str] = None
+    width: int = Field(1024, ge=512, le=1024)
+    height: int = Field(1024, ge=512, le=1024)
+    steps: int = Field(28, ge=1, le=50)
+    guidance_scale: float = Field(4.5, ge=0.0, le=20.0)
+    seed: Optional[int] = None
+
+
+class AuraFlowRequest(BaseModel):
+    prompt: str = Field(..., min_length=1)
+    negative_prompt: Optional[str] = None
+    width: int = Field(1024, ge=512, le=1024)
+    height: int = Field(1024, ge=512, le=1024)
+    steps: int = Field(28, ge=1, le=50)
+    guidance_scale: float = Field(3.5, ge=0.0, le=20.0)
+    seed: Optional[int] = None
+
+
+class OpenFluxRequest(BaseModel):
+    prompt: str = Field(..., min_length=1)
+    width: int = Field(1024, ge=512, le=1024)
+    height: int = Field(1024, ge=512, le=1024)
+    steps: int = Field(28, ge=1, le=50)
+    guidance_scale: float = Field(3.5, ge=0.0, le=20.0)
     seed: Optional[int] = None
 
 
@@ -86,6 +120,24 @@ def models():
                 {"name": "steps", "type": "number", "default": 4, "min": 1, "max": 8},
                 {"name": "seed", "type": "number", "required": False},
             ],
+        },
+	{
+	    "id": "stable-diffusion-3.5-medium",
+            "name": "Stable Diffusion 3.5 Medium",
+            "modality": "text-to-image",
+            "endpoint": "/generate/image/sd35",
+        }, 
+        {
+             "id": "auraflow-v0.3",
+             "name": "AuraFlow v0.3",
+             "modality": "text-to-image",
+             "endpoint": "/generate/image/auraflow",     
+        },
+        {
+             "id": "openflux-1",
+             "name": "OpenFLUX.1",
+             "modality": "text-to-image",
+             "endpoint": "/generate/image/openflux",
         },
         {
             "id": "kokoro-82m",
@@ -126,6 +178,95 @@ def generate_flux(req: FluxRequest):
             "outputType": "image",
             "outputId": output_id,
             "outputUrl": output_url,
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/generate/image/sd35")
+def generate_sd35(req: SD35Request):
+    output_id = f"img_{uuid.uuid4().hex}.png"
+    output_path = IMAGE_OUTPUT_DIR / output_id
+
+    try:
+        sd35_runner.generate(
+            prompt=req.prompt,
+            negative_prompt=req.negative_prompt,
+            output_path=str(output_path),
+            width=req.width,
+            height=req.height,
+            steps=req.steps,
+            guidance_scale=req.guidance_scale,
+            seed=req.seed,
+        )
+
+        return {
+            "status": "completed",
+            "modelId": "stable-diffusion-3.5-medium",
+            "modality": "text-to-image",
+            "outputType": "image",
+            "outputId": output_id,
+            "outputUrl": f"{PUBLIC_BASE_URL}/outputs/images/{output_id}",
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/generate/image/auraflow")
+def generate_auraflow(req: AuraFlowRequest):
+    output_id = f"img_{uuid.uuid4().hex}.png"
+    output_path = IMAGE_OUTPUT_DIR / output_id
+
+    try:
+        auraflow_runner.generate(
+            prompt=req.prompt,
+            negative_prompt=req.negative_prompt,
+            output_path=str(output_path),
+            width=req.width,
+            height=req.height,
+            steps=req.steps,
+            guidance_scale=req.guidance_scale,
+            seed=req.seed,
+        )
+
+        return {
+            "status": "completed",
+            "modelId": "auraflow-v0.3",
+            "modality": "text-to-image",
+            "outputType": "image",
+            "outputId": output_id,
+            "outputUrl": f"{PUBLIC_BASE_URL}/outputs/images/{output_id}",
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/generate/image/openflux")
+def generate_openflux(req: OpenFluxRequest):
+    output_id = f"img_{uuid.uuid4().hex}.png"
+    output_path = IMAGE_OUTPUT_DIR / output_id
+
+    try:
+        openflux_runner.generate(
+            prompt=req.prompt,
+            output_path=str(output_path),
+            width=req.width,
+            height=req.height,
+            steps=req.steps,
+            guidance_scale=req.guidance_scale,
+            seed=req.seed,
+        )
+
+        return {
+            "status": "completed",
+            "modelId": "openflux-1",
+            "modality": "text-to-image",
+            "outputType": "image",
+            "outputId": output_id,
+            "outputUrl": f"{PUBLIC_BASE_URL}/outputs/images/{output_id}",
         }
 
     except Exception as e:
