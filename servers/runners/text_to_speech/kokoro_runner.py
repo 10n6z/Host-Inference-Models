@@ -20,7 +20,8 @@ class KokoroRunner:
         voice: str = "af_heart",
         speed: float = 1.0,
         lang_code: str = "a",
-    ) -> str:
+        sample_rate: int = 24000,
+    ) -> dict:
         pipeline = self.load(lang_code=lang_code)
 
         generator = pipeline(
@@ -39,6 +40,11 @@ class KokoroRunner:
             raise RuntimeError("Kokoro generated no audio.")
 
         audio = np.concatenate(audio_segments)
-        sf.write(output_path, audio, 24000)
+        sf.write(output_path, audio, int(sample_rate))
 
-        return output_path
+        duration_seconds = float(len(audio) / sample_rate) if sample_rate > 0 else None
+        return {
+            "output_path": output_path,
+            "sample_rate": int(sample_rate),
+            "duration_seconds": duration_seconds,
+        }

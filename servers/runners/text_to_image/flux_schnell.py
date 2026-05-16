@@ -1,5 +1,5 @@
-import torch
 import os
+import torch
 from diffusers import FluxPipeline
 
 
@@ -31,7 +31,10 @@ class FluxSchnellRunner:
         width: int = 1024,
         height: int = 1024,
         steps: int = 4,
+        guidance_scale: float = 0.0,
         seed: int | None = None,
+        max_sequence_length: int = 256,
+        num_images: int = 1,
     ) -> str:
         pipe = self.load()
 
@@ -45,8 +48,10 @@ class FluxSchnellRunner:
             width=int(width),
             height=int(height),
             num_inference_steps=int(steps),
-            guidance_scale=0.0,
+            guidance_scale=float(guidance_scale),
             generator=generator,
+            max_sequence_length=int(max_sequence_length),
+            num_images_per_prompt=int(num_images),
         ).images[0]
 
         image.save(output_path)

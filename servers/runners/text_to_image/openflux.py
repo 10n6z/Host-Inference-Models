@@ -41,6 +41,7 @@ class OpenFluxRunner:
         guidance_scale: float = 3.5,
         seed: int | None = None,
         max_sequence_length: int = 256,
+        num_images: int = 1,
     ) -> str:
         pipe = self.load()
 
@@ -56,6 +57,7 @@ class OpenFluxRunner:
             guidance_scale=guidance_scale,
             max_sequence_length=max_sequence_length,
             generator=generator,
+            num_images_per_prompt=int(num_images),
         ).images[0]
 
         image.save(output_path)

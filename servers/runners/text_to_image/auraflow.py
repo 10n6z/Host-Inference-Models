@@ -41,6 +41,7 @@ class AuraFlowRunner:
         steps: int = 28,
         guidance_scale: float = 3.5,
         seed: int | None = None,
+        num_images: int = 1,
     ) -> str:
         pipe = self.load()
 
@@ -56,6 +57,7 @@ class AuraFlowRunner:
             num_inference_steps=steps,
             guidance_scale=guidance_scale,
             generator=generator,
+            num_images_per_prompt=int(num_images),
         ).images[0]
 
         image.save(output_path)
