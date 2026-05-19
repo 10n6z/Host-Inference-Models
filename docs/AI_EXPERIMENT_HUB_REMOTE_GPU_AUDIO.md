@@ -78,10 +78,3 @@ Audio endpoints return:
 - reject unsupported fields by schema (`extra="forbid"`)
 - do not persist secrets in DB/history/logs
 
-## Availability
-
-`GET /models` includes `available` and `unavailable_reason`.
-
-- unavailable models should be shown disabled in control-plane UI
-- control-plane should enqueue only available models
-

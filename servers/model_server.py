@@ -255,14 +255,6 @@ def _field_spec(
     return data
 
 
-def _runner_availability(runner: Any) -> tuple[bool, Optional[str]]:
-    available = bool(getattr(runner, "available", True))
-    reason = getattr(runner, "unavailable_reason", None)
-    if available:
-        return True, None
-    return False, reason or "Runner unavailable."
-
-
 def _audio_response(
     *,
     model_id: str,
@@ -304,21 +296,7 @@ def _audio_response(
     }
 
 
-def _raise_unavailable_model(model_id: str, reason: Optional[str]):
-    raise APIError(
-        code="MODEL_NOT_LOADED",
-        message=f"Model '{model_id}' is unavailable on this GPU server.",
-        status_code=503,
-        details={"reason": reason or "Runner unavailable."},
-    )
-
-
 def _model_registry() -> list[dict[str, Any]]:
-    fish_available, fish_reason = _runner_availability(fish_speech_runner)
-    cosy_available, cosy_reason = _runner_availability(cosyvoice2_runner)
-    index_available, index_reason = _runner_availability(indextts2_runner)
-    stable_available, stable_reason = _runner_availability(stable_audio_open_runner)
-
     return [
         {
             "id": "flux-1-schnell",
@@ -402,7 +380,6 @@ def _model_registry() -> list[dict[str, Any]]:
             "modality": "audio",
             "audioKind": "tts",
             "endpoint": "/generate/tts/kokoro",
-            "available": True,
             "fields": {
                 "text": _field_spec("string", required=True, max_length=TTS_TEXT_MAX_LENGTH),
                 "voice": _field_spec("string", default="af_heart"),
@@ -434,8 +411,6 @@ def _model_registry() -> list[dict[str, Any]]:
             "modality": "audio",
             "audioKind": "tts",
             "endpoint": "/generate/tts/fish-speech",
-            "available": fish_available,
-            "unavailable_reason": fish_reason,
             "fields": {
                 "text": _field_spec("string", required=True, max_length=TTS_TEXT_MAX_LENGTH),
                 "language": _field_spec("string", default="en", enum=FISH_SPEECH_LANGUAGES),
@@ -455,7 +430,6 @@ def _model_registry() -> list[dict[str, Any]]:
             },
             "notes": [
                 "Configured as multilingual TTS contract.",
-                "Runner currently marked unavailable until runtime integration lands.",
             ],
         },
         {
@@ -464,8 +438,6 @@ def _model_registry() -> list[dict[str, Any]]:
             "modality": "audio",
             "audioKind": "tts",
             "endpoint": "/generate/tts/cosyvoice2",
-            "available": cosy_available,
-            "unavailable_reason": cosy_reason,
             "fields": {
                 "text": _field_spec("string", required=True, max_length=TTS_TEXT_MAX_LENGTH),
                 "language": _field_spec("string", default="en", enum=COSYVOICE2_LANGUAGES),
@@ -495,8 +467,6 @@ def _model_registry() -> list[dict[str, Any]]:
             "modality": "audio",
             "audioKind": "tts",
             "endpoint": "/generate/tts/indextts2",
-            "available": index_available,
-            "unavailable_reason": index_reason,
             "fields": {
                 "text": _field_spec("string", required=True, max_length=TTS_TEXT_MAX_LENGTH),
                 "speaker": _field_spec("string", default="default"),
@@ -516,7 +486,6 @@ def _model_registry() -> list[dict[str, Any]]:
             },
             "notes": [
                 "Configured for zero-shot style inputs (speaker/reference).",
-                "Runner currently marked unavailable until runtime integration lands.",
             ],
         },
         {
@@ -525,8 +494,6 @@ def _model_registry() -> list[dict[str, Any]]:
             "modality": "audio",
             "audioKind": "text-to-audio",
             "endpoint": "/generate/audio/stable-audio-open",
-            "available": stable_available,
-            "unavailable_reason": stable_reason,
             "fields": {
                 "prompt": _field_spec("string", required=True, max_length=TTA_TEXT_MAX_LENGTH),
                 "negative_prompt": _field_spec("string", required=False, max_length=TTA_TEXT_MAX_LENGTH),
@@ -898,10 +865,6 @@ def generate_openflux(req: OpenFluxRequest):
 
 @app.post("/generate/tts/kokoro")
 def generate_kokoro(req: KokoroRequest):
-    available, reason = _runner_availability(kokoro_runner)
-    if not available:
-        _raise_unavailable_model("kokoro-82m", reason)
-
     format_normalized = req.format.lower()
     output_id = f"aud_{uuid.uuid4().hex}.{format_normalized}"
     output_path = AUDIO_OUTPUT_DIR / output_id
@@ -960,10 +923,6 @@ def generate_kokoro(req: KokoroRequest):
 
 @app.post("/generate/tts/fish-speech")
 def generate_fish_speech(req: FishSpeechRequest):
-    available, reason = _runner_availability(fish_speech_runner)
-    if not available:
-        _raise_unavailable_model("fish-speech-v1.5", reason)
-
     format_normalized = req.format.lower()
     language = req.language.lower()
     output_id = f"aud_{uuid.uuid4().hex}.{format_normalized}"
@@ -1008,10 +967,6 @@ def generate_fish_speech(req: FishSpeechRequest):
 
 @app.post("/generate/tts/cosyvoice2")
 def generate_cosyvoice2(req: CosyVoice2Request):
-    available, reason = _runner_availability(cosyvoice2_runner)
-    if not available:
-        _raise_unavailable_model("cosyvoice2-0.5b", reason)
-
     format_normalized = req.format.lower()
     language = req.language.lower()
     output_id = f"aud_{uuid.uuid4().hex}.{format_normalized}"
@@ -1058,10 +1013,6 @@ def generate_cosyvoice2(req: CosyVoice2Request):
 
 @app.post("/generate/tts/indextts2")
 def generate_indextts2(req: IndexTTS2Request):
-    available, reason = _runner_availability(indextts2_runner)
-    if not available:
-        _raise_unavailable_model("indextts-2", reason)
-
     format_normalized = req.format.lower()
     output_id = f"aud_{uuid.uuid4().hex}.{format_normalized}"
     output_path = AUDIO_OUTPUT_DIR / output_id
@@ -1105,10 +1056,6 @@ def generate_indextts2(req: IndexTTS2Request):
 
 @app.post("/generate/audio/stable-audio-open")
 def generate_stable_audio_open(req: StableAudioOpenRequest):
-    available, reason = _runner_availability(stable_audio_open_runner)
-    if not available:
-        _raise_unavailable_model("stable-audio-open-1.0", reason)
-
     format_normalized = req.format.lower()
     output_id = f"aud_{uuid.uuid4().hex}.{format_normalized}"
     output_path = AUDIO_OUTPUT_DIR / output_id

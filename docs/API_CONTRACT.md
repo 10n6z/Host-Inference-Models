@@ -40,7 +40,6 @@ Error codes:
 
 Returns model metadata + field constraints.
 
-- `available: false` means endpoint exists but should be disabled by control plane UI.
 - `audioKind` distinguishes TTS (`tts`) from text-to-audio (`text-to-audio`).
 
 Example snippet:
@@ -54,7 +53,6 @@ Example snippet:
       "modality": "audio",
       "audioKind": "tts",
       "endpoint": "/generate/tts/kokoro",
-      "available": true,
       "fields": {
         "text": { "type": "string", "required": true, "max_length": 12000 },
         "voice": { "type": "string", "default": "af_heart" }
@@ -65,8 +63,7 @@ Example snippet:
       "displayName": "Stable Audio Open 1.0",
       "modality": "audio",
       "audioKind": "text-to-audio",
-      "endpoint": "/generate/audio/stable-audio-open",
-      "available": true
+      "endpoint": "/generate/audio/stable-audio-open"
     }
   ]
 }
@@ -280,4 +277,3 @@ curl -X POST "$GPU_SERVER_URL/generate/audio/stable-audio-open" \
     "format": "wav"
   }'
 ```
-

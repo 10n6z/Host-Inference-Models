@@ -61,14 +61,6 @@ def app_module(tmp_path, monkeypatch):
     monkeypatch.setattr(module.cosyvoice2_runner, "generate", _fake_audio("cosyvoice2"))
     monkeypatch.setattr(module.indextts2_runner, "generate", _fake_audio("indextts2"))
     monkeypatch.setattr(module.stable_audio_open_runner, "generate", _fake_audio("stable_audio_open"))
-    monkeypatch.setattr(module.fish_speech_runner, "available", True, raising=False)
-    monkeypatch.setattr(module.fish_speech_runner, "unavailable_reason", None, raising=False)
-    monkeypatch.setattr(module.cosyvoice2_runner, "available", True, raising=False)
-    monkeypatch.setattr(module.cosyvoice2_runner, "unavailable_reason", None, raising=False)
-    monkeypatch.setattr(module.indextts2_runner, "available", True, raising=False)
-    monkeypatch.setattr(module.indextts2_runner, "unavailable_reason", None, raising=False)
-    monkeypatch.setattr(module.stable_audio_open_runner, "available", True, raising=False)
-    monkeypatch.setattr(module.stable_audio_open_runner, "unavailable_reason", None, raising=False)
 
     module._captured = captured
     return module
@@ -276,22 +268,6 @@ def test_stable_audio_duration_limit_enforced(client):
     assert body["code"] == "VALIDATION_ERROR"
 
 
-def test_unavailable_runner_returns_model_not_loaded(client, app_module, monkeypatch):
-    monkeypatch.setattr(app_module.fish_speech_runner, "available", False, raising=False)
-    monkeypatch.setattr(
-        app_module.fish_speech_runner,
-        "unavailable_reason",
-        "runner not wired",
-        raising=False,
-    )
-
-    res = client.post(
-        "/generate/tts/fish-speech",
-        json={"text": "hello fish speech", "language": "en", "voice": "default"},
-    )
-    assert res.status_code == 503
-    body = res.json()
-    assert body["code"] == "MODEL_NOT_LOADED"
 
 
 def test_output_metadata_includes_parameters_used(client):
