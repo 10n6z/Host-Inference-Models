@@ -1,6 +1,6 @@
 # GPU Inference Server API Contract
 
-This server is inference-plane only.
+Inference plane only.
 
 - No auth
 - No queue/retry/job history/database
@@ -38,124 +38,95 @@ Error codes:
 
 ## GET /models
 
-Returns dynamic model metadata and supported request fields.
+Returns model metadata + field constraints.
+
+- `available: false` means endpoint exists but should be disabled by control plane UI.
+- `audioKind` distinguishes TTS (`tts`) from text-to-audio (`text-to-audio`).
+
+Example snippet:
 
 ```json
 {
   "models": [
     {
-      "id": "flux-1-schnell",
-      "displayName": "FLUX.1 Schnell",
-      "modality": "image",
-      "endpoint": "/generate/image/flux",
+      "id": "kokoro-82m",
+      "displayName": "Kokoro-82M",
+      "modality": "audio",
+      "audioKind": "tts",
+      "endpoint": "/generate/tts/kokoro",
+      "available": true,
       "fields": {
-        "prompt": { "type": "string", "required": true },
-        "width": { "type": "integer", "default": 1024, "min": 512, "max": 2048, "step": 8 },
-        "height": { "type": "integer", "default": 1024, "min": 512, "max": 2048, "step": 8 },
-        "steps": { "type": "integer", "default": 4, "min": 1, "max": 20 },
-        "guidance_scale": { "type": "number", "default": 0.0, "min": 0.0, "max": 0.0 },
-        "seed": { "type": "integer", "required": false },
-        "random_seed": { "type": "boolean", "default": true },
-        "max_sequence_length": { "type": "integer", "default": 256, "max": 256 }
+        "text": { "type": "string", "required": true, "max_length": 12000 },
+        "voice": { "type": "string", "default": "af_heart" }
       }
+    },
+    {
+      "id": "stable-audio-open-1.0",
+      "displayName": "Stable Audio Open 1.0",
+      "modality": "audio",
+      "audioKind": "text-to-audio",
+      "endpoint": "/generate/audio/stable-audio-open",
+      "available": true
     }
-  ],
-  "field_catalog": {
-    "future_audio_video_fields": [
-      "duration",
-      "guidance_scale",
-      "seed",
-      "reference_audio",
-      "reference_image",
-      "sample_rate",
-      "fps",
-      "resolution",
-      "num_frames"
-    ]
-  }
+  ]
 }
 ```
-
-## Common Image Request Rules
-
-- `prompt` required
-- `prompt` max length: 4000
-- `width`/`height`: 512-2048, multiple of 8
-- `steps`: model-specific min/max
-- `guidance_scale`: model-specific min/max
-- `num_images`: currently max `1` (MVP; no batching)
-- `random_seed=true`: server generates seed and returns it in `parameters_used.seed`
-- `random_seed=false`: `seed` required
-
-`steps` maps to pipeline `num_inference_steps`.
 
 ## Image Endpoints
 
 ### POST /generate/image/flux
 
-Fields:
-
-- `prompt`
-- `width`, `height`
-- `steps` (1-20, default 4)
-- `guidance_scale` (must be 0)
-- `seed`, `random_seed`
-- `max_sequence_length` (max 256)
-- `num_images` (max 1)
+- `prompt` required (max 4000)
+- `width`/`height`: 512-2048, multiple of 8
+- `steps`: 1-20
+- `guidance_scale`: must be `0`
+- `max_sequence_length`: max 256
+- `seed` + `random_seed`
+- `num_images`: max `1`
 
 ### POST /generate/image/sd35
 
-Fields:
-
-- `prompt`
-- `negative_prompt`
-- `width`, `height`
-- `steps` (1-60, default 28)
-- `guidance_scale` (0-20, default 7.0)
-- `seed`, `random_seed`
-- `num_images` (max 1)
+- `prompt` required
+- `negative_prompt` optional
+- `width`/`height`: 512-2048, multiple of 8
+- `steps`: 1-60
+- `guidance_scale`: 0-20
+- `seed` + `random_seed`
+- `num_images`: max `1`
 
 ### POST /generate/image/auraflow
 
-Fields:
-
-- `prompt`
-- `negative_prompt`
-- `width`, `height`
-- `steps` (1-60, default 30)
-- `guidance_scale` (0-20, default 5.0)
-- `seed`, `random_seed`
-- `num_images` (max 1)
+- `prompt` required
+- `negative_prompt` optional
+- `width`/`height`: 512-2048, multiple of 8
+- `steps`: 1-60
+- `guidance_scale`: 0-20
+- `seed` + `random_seed`
+- `num_images`: max `1`
 
 ### POST /generate/image/openflux
 
-Fields:
+- `prompt` required
+- `width`/`height`: 512-2048, multiple of 8
+- `steps`: 1-60
+- `guidance_scale`: 0-20
+- `max_sequence_length`: max 512
+- `seed` + `random_seed`
+- `num_images`: max `1`
 
-- `prompt`
-- `width`, `height`
-- `steps` (1-60, default 28)
-- `guidance_scale` (0-20, default 7.0)
-- `max_sequence_length` (max 512)
-- `seed`, `random_seed`
-- `num_images` (max 1)
-
-Note: current OpenFLUX endpoint uses FluxPipeline-compatible args from local implementation. Unsupported request keys are rejected.
-
-## Audio Endpoint
+## Audio Endpoints
 
 ### POST /generate/tts/kokoro
 
-Fields:
+- `text` required, max 12000
+- `voice` default `af_heart`
+- `language` default `en`
+- `speed`: 0.5-2.0
+- `format`: `wav`
+- `sample_rate`: `24000`
+- `lang_code` optional override
 
-- `text` required, max length 12000
-- `voice` optional (default `af_heart`)
-- `language` optional (default `en`)
-- `speed` optional (0.5-2.0, default 1.0)
-- `format` optional (`wav` only)
-- `sample_rate` optional (`24000` only)
-- `lang_code` optional (backward compatibility override)
-
-Language maps to Kokoro `lang_code` (examples):
+Language mapping to Kokoro `lang_code`:
 
 - `en`/`en-us` -> `a`
 - `en-gb` -> `b`
@@ -165,112 +136,85 @@ Language maps to Kokoro `lang_code` (examples):
 - `it` -> `i`
 - `ja` -> `j`
 - `pt-br` -> `p`
-- `zh` -> `z`
+- `zh`/`zh-cn` -> `z`
+
+### POST /generate/tts/fish-speech
+
+- `text` required, max 12000
+- `language` enum: `en, zh, ja, de, fr, es, ko, ar, ru, nl, it, pl, pt`
+- `voice` default `default`
+- `reference_audio_id` optional
+- `speed`: 0.5-2.0
+- `format`: `wav`
+- `sample_rate` optional (8000-96000)
+
+### POST /generate/tts/cosyvoice2
+
+- `text` required, max 12000
+- `language` enum: `zh, en, ja, ko, de, es, fr, it, ru`
+- `speaker` default `default`
+- `reference_audio_id` optional
+- `instruction` optional, max 500
+- `speed`: 0.5-2.0
+- `stream` boolean (accepted; response still file output)
+- `format`: `wav`
+
+### POST /generate/tts/indextts2
+
+- `text` required, max 12000
+- `speaker` default `default`
+- `reference_audio_id` optional
+- `emotion` optional
+- `duration_control` optional 0.5-120.0
+- `speed`: 0.5-2.0
+- `format`: `wav`
+
+### POST /generate/audio/stable-audio-open
+
+Text-to-audio (music/sound), not standard TTS.
+
+- `prompt` required, max 4000
+- `negative_prompt` optional
+- `duration_seconds`: 1-47
+- `steps`: 1-250
+- `guidance_scale`: 0-25
+- `seed` + `random_seed`
+- `format`: `wav`
 
 ## Success Response Shape
 
-Image and audio endpoints return:
+Image + audio responses return:
 
 ```json
 {
   "success": true,
-  "model_id": "flux-1-schnell",
-  "modality": "image",
-  "output_url": "/outputs/images/img_xxx.png",
-  "public_output_url": "http://host:8001/outputs/images/img_xxx.png",
-  "file_name": "img_xxx.png",
-  "mime_type": "image/png",
-  "parameters_used": {
-    "prompt": "...",
-    "width": 1024,
-    "height": 1024,
-    "steps": 4,
-    "guidance_scale": 0,
-    "seed": 123
-  },
+  "model_id": "stable-audio-open-1.0",
+  "modality": "audio",
+  "audio_kind": "text-to-audio",
+  "output_url": "/outputs/audio/aud_xxx.wav",
+  "public_output_url": "http://host:8001/outputs/audio/aud_xxx.wav",
+  "file_name": "aud_xxx.wav",
+  "mime_type": "audio/wav",
+  "parameters_used": {},
   "duration_ms": 12345,
-  "created_at": "2026-05-16T00:00:00Z"
+  "audio_duration_seconds": 4.2,
+  "duration_seconds": 4.2,
+  "sample_rate": 44100,
+  "created_at": "2026-05-19T00:00:00Z"
 }
 ```
 
-Audio responses additionally include:
-
-- `duration_seconds` (if available)
-- `parameters_used.voice`
-- `parameters_used.language`
-- `parameters_used.speed`
-- `parameters_used.sample_rate`
-
-## Backward Compatibility
-
-Prompt-only requests still valid.
-
-Example:
-
-```json
-{ "prompt": "A cat holding a sign that says hello world" }
-```
-
-Server applies model defaults.
+`duration_seconds` kept for backward compatibility; prefer `audio_duration_seconds`.
 
 ## Curl Smoke Examples
 
-FLUX:
-
-```bash
-curl -X POST "$GPU_SERVER_URL/generate/image/flux" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "prompt": "A cat holding a sign that says hello world",
-    "width": 1024,
-    "height": 1024,
-    "steps": 4,
-    "guidance_scale": 0,
-    "seed": 42,
-    "random_seed": false
-  }'
-```
-
-SD3.5:
-
-```bash
-curl -X POST "$GPU_SERVER_URL/generate/image/sd35" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "prompt": "A cinematic robot in a neon city",
-    "negative_prompt": "blurry, low quality",
-    "width": 1024,
-    "height": 1024,
-    "steps": 28,
-    "guidance_scale": 5.0,
-    "seed": 123,
-    "random_seed": false
-  }'
-```
-
-AuraFlow:
-
-```bash
-curl -X POST "$GPU_SERVER_URL/generate/image/auraflow" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "prompt": "A cozy paper craft diorama workspace",
-    "width": 1024,
-    "height": 1024,
-    "steps": 30,
-    "guidance_scale": 5.0,
-    "seed": 7,
-    "random_seed": false
-  }'
-```
-
-Kokoro TTS:
+Kokoro:
 
 ```bash
 curl -X POST "$GPU_SERVER_URL/generate/tts/kokoro" \
   -H "Content-Type: application/json" \
   -d '{
-    "text": "Hello from the AI Experiment Hub.",
+    "text": "Hello from AI Experiment Hub.",
     "voice": "af_heart",
     "language": "en",
     "speed": 1.0,
@@ -278,8 +222,62 @@ curl -X POST "$GPU_SERVER_URL/generate/tts/kokoro" \
   }'
 ```
 
-## Integration Notes
+Fish Speech:
 
-- Frontend must not call GPU server directly.
-- Backend control plane should call `GET /models` for dynamic forms + allowlist validation.
-- GPU server remains defensive: rejects unknown fields, out-of-range values, and unsupported settings.
+```bash
+curl -X POST "$GPU_SERVER_URL/generate/tts/fish-speech" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "text": "Hello from Fish Speech.",
+    "language": "en",
+    "voice": "default",
+    "speed": 1.0,
+    "format": "wav"
+  }'
+```
+
+CosyVoice2:
+
+```bash
+curl -X POST "$GPU_SERVER_URL/generate/tts/cosyvoice2" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "text": "Hello from CosyVoice two.",
+    "language": "en",
+    "speaker": "default",
+    "speed": 1.0,
+    "format": "wav",
+    "stream": false
+  }'
+```
+
+IndexTTS-2:
+
+```bash
+curl -X POST "$GPU_SERVER_URL/generate/tts/indextts2" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "text": "Hello from Index TTS two.",
+    "speaker": "default",
+    "emotion": "neutral",
+    "speed": 1.0,
+    "format": "wav"
+  }'
+```
+
+Stable Audio Open:
+
+```bash
+curl -X POST "$GPU_SERVER_URL/generate/audio/stable-audio-open" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "prompt": "A short cinematic ambient drone with soft bells",
+    "duration_seconds": 10,
+    "steps": 50,
+    "guidance_scale": 7.0,
+    "seed": 42,
+    "random_seed": false,
+    "format": "wav"
+  }'
+```
+
