@@ -102,6 +102,7 @@ class FishSpeechRunner:
         voice: str = "default",
         speed: float = 1.0,
         format: str = "wav",
+        seed: int | None = None,
         sample_rate: int | None = None,
         reference_audio_id: str | None = None,
         parameters: dict[str, Any] | None = None,
@@ -135,7 +136,7 @@ class FishSpeechRunner:
             temperature=0.8,
             streaming=False,
             use_memory_cache="off",
-            seed=None,
+            seed=seed,
             normalize=True,
         )
 

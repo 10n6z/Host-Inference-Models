@@ -32,7 +32,34 @@ SD35_MODEL_PATH=/home/long/local-ai/models/text-to-image/stable-diffusion-3.5-me
 AURAFLOW_MODEL_PATH=/home/long/local-ai/models/text-to-image/auraflow-v0.3
 OPENFLUX_MODEL_PATH=/home/long/local-ai/models/text-to-image/openflux-1
 STABLE_AUDIO_MODEL_PATH=/home/long/local-ai/models/text-to-audio/stable-audio-open-1.0
+COSYVOICE2_MODEL_PATH=/home/long/local-ai/models/text-to-speech/cosyvoice2-0.5b
+FISH_SPEECH_MODEL_PATH=/home/long/local-ai/models/text-to-speech/fish-speech-v1.5
+INDEXTTS2_MODEL_PATH=/home/long/local-ai/models/text-to-speech/indextts-2
+
+# Optional fallback references for models that need prompt audio:
+COSYVOICE2_DEFAULT_REFERENCE_AUDIO=
+COSYVOICE2_DEFAULT_REFERENCE_TEXT=
+INDEXTTS2_DEFAULT_REFERENCE_AUDIO=
 ```
+
+## Download Models
+
+Do not commit model weights, generated outputs, or Hugging Face cache files.
+
+```bash
+mkdir -p /home/long/local-ai/models/text-to-speech
+
+hf download FunAudioLLM/CosyVoice2-0.5B \
+  --local-dir /home/long/local-ai/models/text-to-speech/cosyvoice2-0.5b
+
+hf download fishaudio/fish-speech-1.5 \
+  --local-dir /home/long/local-ai/models/text-to-speech/fish-speech-v1.5
+
+hf download IndexTeam/IndexTTS-2 \
+  --local-dir /home/long/local-ai/models/text-to-speech/indextts-2
+```
+
+CosyVoice2, Fish Speech, and IndexTTS-2 use custom runners and may need model-specific dependencies. Add dependencies one model at a time. If package versions conflict with working image/audio services, isolate them into separate environments or services instead of changing the shared environment blindly.
 
 ## Start Image Server
 
@@ -77,6 +104,7 @@ Health:
 ```bash
 curl http://localhost:8001/health
 curl http://localhost:8002/health
+curl http://localhost:8002/models
 ```
 
 FLUX image:
@@ -120,4 +148,43 @@ curl -X POST http://localhost:8002/generate/audio/stable-audio \
     "guidance_scale": 7.0,
     "format": "wav"
   }'
+```
+
+CosyVoice2:
+
+```bash
+curl -X POST http://localhost:8002/generate/tts/cosyvoice2 \
+  -H "Content-Type: application/json" \
+  -d '{
+    "text": "Hello, this is a CosyVoice2 smoke test.",
+    "seed": 42
+  }'
+```
+
+Fish Speech:
+
+```bash
+curl -X POST http://localhost:8002/generate/tts/fish-speech \
+  -H "Content-Type: application/json" \
+  -d '{
+    "text": "Hello, this is a Fish Speech smoke test.",
+    "seed": 42
+  }'
+```
+
+IndexTTS-2:
+
+```bash
+curl -X POST http://localhost:8002/generate/tts/indextts2 \
+  -H "Content-Type: application/json" \
+  -d '{
+    "text": "Hello, this is an IndexTTS two smoke test.",
+    "seed": 42
+  }'
+```
+
+After each audio request:
+
+```bash
+ls -lh /home/long/local-ai/outputs/audio | tail
 ```

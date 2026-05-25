@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import inspect
 import os
+import random
 from pathlib import Path
 from typing import Any
 
@@ -70,6 +71,28 @@ class IndexTTS2Runner:
         )
 
     @staticmethod
+    def _seed_everything(seed: int | None):
+        if seed is None:
+            return
+
+        seed_value = int(seed)
+        random.seed(seed_value)
+        try:
+            import numpy as np
+
+            np.random.seed(seed_value % (2**32))
+        except Exception:
+            pass
+        try:
+            import torch
+
+            torch.manual_seed(seed_value)
+            if torch.cuda.is_available():
+                torch.cuda.manual_seed_all(seed_value)
+        except Exception:
+            return
+
+    @staticmethod
     def _maybe_read_duration(path: Path) -> float | None:
         try:
             info = sf.info(str(path))
@@ -93,6 +116,7 @@ class IndexTTS2Runner:
         speaker: str = "default",
         speed: float = 1.0,
         format: str = "wav",
+        seed: int | None = None,
         reference_audio_id: str | None = None,
         emotion: str | None = None,
         duration_control: float | None = None,
@@ -102,6 +126,7 @@ class IndexTTS2Runner:
             raise ValueError("IndexTTS2 runner currently supports format=wav only.")
 
         model = self.load()
+        self._seed_everything(seed)
         ref_audio = self._resolve_reference_audio_path(reference_audio_id)
 
         # IndexTTS2 API uses spk_audio_prompt + optional emotion controls.

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import inspect
 import os
+import random
 import sys
 from pathlib import Path
 from typing import Any
@@ -20,6 +21,8 @@ class CosyVoice2Runner:
         )
         self.model = None
         self.sample_rate = 22050
+        self.default_reference_audio = os.getenv("COSYVOICE2_DEFAULT_REFERENCE_AUDIO", "")
+        self.default_reference_text = os.getenv("COSYVOICE2_DEFAULT_REFERENCE_TEXT", "")
 
     def _prepare_pythonpath(self):
         # CosyVoice often expects third_party/Matcha-TTS import path.
@@ -71,11 +74,51 @@ class CosyVoice2Runner:
             f"or file under TTS_REFERENCE_AUDIO_ROOT ({ref_root})."
         )
 
+    def _default_reference_audio_path(self) -> Path | None:
+        if not self.default_reference_audio:
+            return None
+
+        candidate = Path(self.default_reference_audio)
+        if candidate.is_file():
+            return candidate
+        return None
+
+    @staticmethod
+    def _speaker_for_sft(model: Any, speaker: str) -> str:
+        if speaker != "default":
+            return speaker
+
+        list_spks = getattr(model, "list_available_spks", None)
+        if not callable(list_spks):
+            return speaker
+
+        speakers = list_spks()
+        if speakers:
+            return str(speakers[0])
+        return speaker
+
     @staticmethod
     def _call_with_supported_kwargs(func, *args, **kwargs):
         sig = inspect.signature(func)
         supported = {k: v for k, v in kwargs.items() if k in sig.parameters}
         return func(*args, **supported)
+
+    @staticmethod
+    def _seed_everything(seed: int | None):
+        if seed is None:
+            return
+
+        seed_value = int(seed)
+        random.seed(seed_value)
+        np.random.seed(seed_value % (2**32))
+        try:
+            import torch
+
+            torch.manual_seed(seed_value)
+            if torch.cuda.is_available():
+                torch.cuda.manual_seed_all(seed_value)
+        except Exception:
+            return
 
     @staticmethod
     def _to_np_audio(value: Any) -> np.ndarray:
@@ -97,6 +140,7 @@ class CosyVoice2Runner:
         speaker: str = "default",
         speed: float = 1.0,
         format: str = "wav",
+        seed: int | None = None,
         reference_audio_id: str | None = None,
         instruction: str | None = None,
         stream: bool = False,
@@ -106,13 +150,20 @@ class CosyVoice2Runner:
             raise ValueError("CosyVoice2 runner currently supports format=wav only.")
 
         model = self.load()
+        self._seed_everything(seed)
         outputs = []
 
-        if reference_audio_id:
-            reference_path = self._resolve_reference_audio_path(reference_audio_id)
-            prompt_text = ""
-            if isinstance(parameters, dict):
-                prompt_text = str(parameters.get("referenceText", "") or "")
+        default_reference_path = None if reference_audio_id else self._default_reference_audio_path()
+
+        if reference_audio_id or default_reference_path is not None:
+            reference_path = (
+                self._resolve_reference_audio_path(reference_audio_id)
+                if reference_audio_id
+                else default_reference_path
+            )
+            prompt_text = self.default_reference_text if default_reference_path is not None else ""
+            if isinstance(parameters, dict) and parameters.get("referenceText") is not None:
+                prompt_text = str(parameters.get("referenceText") or "")
 
             if instruction:
                 generator = self._call_with_supported_kwargs(
@@ -133,6 +184,7 @@ class CosyVoice2Runner:
                     speed=float(speed),
                 )
         else:
+            speaker = self._speaker_for_sft(model, speaker)
             generator = self._call_with_supported_kwargs(
                 model.inference_sft,
                 text,

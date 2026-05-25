@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import mimetypes
+import logging
 import os
 import time
 import uuid
@@ -36,14 +37,22 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field
 
 from runners.text_to_audio.stable_audio_open import StableAudioOpenRunner
+from runners.text_to_speech.cosyvoice2_runner import CosyVoice2Runner
+from runners.text_to_speech.fish_speech_runner import FishSpeechRunner
+from runners.text_to_speech.indextts2_runner import IndexTTS2Runner
 from runners.text_to_speech.kokoro_runner import KokoroRunner
 
 TTS_TEXT_MAX_LENGTH = 12000
 TTA_TEXT_MAX_LENGTH = 4000
 MAX_SEED = 2_147_483_647
+MAX_REF_AUDIO_PATH_LENGTH = 500
+MAX_REFERENCE_TEXT_LENGTH = 12000
 STABLE_AUDIO_MIN_DURATION_SECONDS = 1.0
 STABLE_AUDIO_MAX_DURATION_SECONDS = 47.0
 WAV_ONLY_PATTERN = "^(wav)$"
+MAX_ERROR_MESSAGE_LENGTH = 500
+
+logger = logging.getLogger(__name__)
 
 KOKORO_LANGUAGE_TO_CODE = {
     "en": "a",
@@ -65,6 +74,9 @@ app = FastAPI(title="Local AI Audio Generation Server")
 app.mount("/outputs", StaticFiles(directory=str(OUTPUT_ROOT)), name="outputs")
 
 kokoro_runner = KokoroRunner()
+cosyvoice2_runner = CosyVoice2Runner()
+fish_speech_runner = FishSpeechRunner()
+indextts2_runner = IndexTTS2Runner()
 stable_audio_runner = StableAudioOpenRunner()
 
 
@@ -89,6 +101,41 @@ class KokoroRequest(StrictRequestModel):
     format: str = Field("wav", pattern=WAV_ONLY_PATTERN)
     sample_rate: int = Field(24000, ge=24000, le=24000)
     lang_code: Optional[str] = Field(default=None, min_length=1, max_length=1)
+
+
+class CosyVoice2Request(StrictRequestModel):
+    text: str = Field(..., min_length=1, max_length=TTS_TEXT_MAX_LENGTH)
+    seed: Optional[int] = Field(default=None, ge=0, le=MAX_SEED)
+    reference_audio: Optional[str] = Field(default=None, min_length=1, max_length=MAX_REF_AUDIO_PATH_LENGTH)
+    reference_text: Optional[str] = Field(default=None, max_length=MAX_REFERENCE_TEXT_LENGTH)
+    speed: float = Field(1.0, ge=0.5, le=2.0)
+    format: str = Field("wav", pattern=WAV_ONLY_PATTERN)
+    speaker: str = Field("default", min_length=1, max_length=100)
+    instruction: Optional[str] = Field(default=None, max_length=500)
+    stream: bool = False
+
+
+class FishSpeechRequest(StrictRequestModel):
+    text: str = Field(..., min_length=1, max_length=TTS_TEXT_MAX_LENGTH)
+    seed: Optional[int] = Field(default=None, ge=0, le=MAX_SEED)
+    reference_audio: Optional[str] = Field(default=None, min_length=1, max_length=MAX_REF_AUDIO_PATH_LENGTH)
+    reference_text: Optional[str] = Field(default=None, max_length=MAX_REFERENCE_TEXT_LENGTH)
+    speed: float = Field(1.0, ge=0.5, le=2.0)
+    format: str = Field("wav", pattern=WAV_ONLY_PATTERN)
+    voice: str = Field("default", min_length=1, max_length=100)
+    sample_rate: Optional[int] = Field(default=None, ge=8000, le=96000)
+
+
+class IndexTTS2Request(StrictRequestModel):
+    text: str = Field(..., min_length=1, max_length=TTS_TEXT_MAX_LENGTH)
+    seed: Optional[int] = Field(default=None, ge=0, le=MAX_SEED)
+    reference_audio: Optional[str] = Field(default=None, min_length=1, max_length=MAX_REF_AUDIO_PATH_LENGTH)
+    reference_text: Optional[str] = Field(default=None, max_length=MAX_REFERENCE_TEXT_LENGTH)
+    speed: float = Field(1.0, ge=0.5, le=2.0)
+    format: str = Field("wav", pattern=WAV_ONLY_PATTERN)
+    speaker: str = Field("default", min_length=1, max_length=100)
+    emotion: Optional[str] = Field(default=None, min_length=1, max_length=100)
+    duration_control: Optional[float] = Field(default=None, ge=0.5, le=120.0)
 
 
 class StableAudioRequest(StrictRequestModel):
@@ -149,6 +196,48 @@ def _model_registry() -> list[dict[str, Any]]:
                 "speed": _field_spec("number", default=1.0, minimum=0.5, maximum=2.0),
                 "format": _field_spec("string", default="wav", enum=["wav"]),
                 "sample_rate": _field_spec("integer", default=24000, minimum=24000, maximum=24000),
+            },
+        },
+        {
+            "id": "fish-speech-v1.5",
+            "displayName": "Fish Speech v1.5",
+            "modality": "text-to-speech",
+            "endpoint": "/generate/tts/fish-speech",
+            "fields": {
+                "text": _field_spec("string", required=True, max_length=TTS_TEXT_MAX_LENGTH),
+                "seed": _field_spec("integer", required=False, minimum=0, maximum=MAX_SEED),
+                "reference_audio": _field_spec("string", required=False, max_length=MAX_REF_AUDIO_PATH_LENGTH),
+                "reference_text": _field_spec("string", required=False, max_length=MAX_REFERENCE_TEXT_LENGTH),
+                "speed": _field_spec("number", default=1.0, minimum=0.5, maximum=2.0),
+                "format": _field_spec("string", default="wav", enum=["wav"]),
+            },
+        },
+        {
+            "id": "cosyvoice2-0.5b",
+            "displayName": "CosyVoice2-0.5B",
+            "modality": "text-to-speech",
+            "endpoint": "/generate/tts/cosyvoice2",
+            "fields": {
+                "text": _field_spec("string", required=True, max_length=TTS_TEXT_MAX_LENGTH),
+                "seed": _field_spec("integer", required=False, minimum=0, maximum=MAX_SEED),
+                "reference_audio": _field_spec("string", required=False, max_length=MAX_REF_AUDIO_PATH_LENGTH),
+                "reference_text": _field_spec("string", required=False, max_length=MAX_REFERENCE_TEXT_LENGTH),
+                "speed": _field_spec("number", default=1.0, minimum=0.5, maximum=2.0),
+                "format": _field_spec("string", default="wav", enum=["wav"]),
+            },
+        },
+        {
+            "id": "indextts-2",
+            "displayName": "IndexTTS-2",
+            "modality": "text-to-speech",
+            "endpoint": "/generate/tts/indextts2",
+            "fields": {
+                "text": _field_spec("string", required=True, max_length=TTS_TEXT_MAX_LENGTH),
+                "seed": _field_spec("integer", required=False, minimum=0, maximum=MAX_SEED),
+                "reference_audio": _field_spec("string", required=False, max_length=MAX_REF_AUDIO_PATH_LENGTH),
+                "reference_text": _field_spec("string", required=False, max_length=MAX_REFERENCE_TEXT_LENGTH),
+                "speed": _field_spec("number", default=1.0, minimum=0.5, maximum=2.0),
+                "format": _field_spec("string", default="wav", enum=["wav"]),
             },
         },
         {
@@ -220,6 +309,18 @@ def _map_runtime_error(exc: Exception) -> APIError:
     if "cuda out of memory" in lower or "out of memory" in lower:
         return APIError("CUDA_OUT_OF_MEMORY", message, 507)
     return APIError("GENERATION_FAILED", message, 500)
+
+
+def _safe_error_message(exc: Exception) -> str:
+    message = str(exc) or exc.__class__.__name__
+    if len(message) > MAX_ERROR_MESSAGE_LENGTH:
+        return f"{message[:MAX_ERROR_MESSAGE_LENGTH]}..."
+    return message
+
+
+def _map_tts_runtime_error(exc: Exception) -> APIError:
+    logger.exception("TTS generation failed")
+    return APIError("TTS_GENERATION_FAILED", _safe_error_message(exc), 500)
 
 
 def _validation_message(errors: list[dict[str, Any]]) -> str:
@@ -367,6 +468,146 @@ def generate_kokoro(req: KokoroRequest):
             "speed": req.speed,
             "format": format_normalized,
             "sample_rate": req.sample_rate,
+        },
+        duration_ms=int((time.perf_counter() - start) * 1000),
+        audio_meta=audio_meta,
+    )
+
+
+@app.post("/generate/tts/fish-speech")
+def generate_fish_speech(req: FishSpeechRequest):
+    format_normalized = req.format.lower()
+    output_id = f"fish_{uuid.uuid4().hex}.{format_normalized}"
+    output_path = AUDIO_OUTPUT_DIR / output_id
+    start = time.perf_counter()
+
+    try:
+        audio_meta = _run_with_timeout(
+            fish_speech_runner.generate,
+            text=req.text,
+            output_path=str(output_path),
+            voice=req.voice,
+            speed=req.speed,
+            format=format_normalized,
+            seed=req.seed,
+            sample_rate=req.sample_rate,
+            reference_audio_id=req.reference_audio,
+            parameters={
+                "referenceText": req.reference_text,
+                "seed": req.seed,
+            },
+        )
+        _check_output_exists(output_path)
+    except Exception as exc:
+        raise _map_tts_runtime_error(exc)
+
+    return _audio_response(
+        model_id="fish-speech-v1.5",
+        modality="text-to-speech",
+        audio_kind="tts",
+        output_id=output_id,
+        output_path=output_path,
+        parameters_used={
+            "text": req.text,
+            "seed": req.seed,
+            "reference_audio": req.reference_audio,
+            "reference_text": req.reference_text,
+            "speed": req.speed,
+            "format": format_normalized,
+        },
+        duration_ms=int((time.perf_counter() - start) * 1000),
+        audio_meta=audio_meta,
+    )
+
+
+@app.post("/generate/tts/cosyvoice2")
+def generate_cosyvoice2(req: CosyVoice2Request):
+    format_normalized = req.format.lower()
+    output_id = f"cosyvoice2_{uuid.uuid4().hex}.{format_normalized}"
+    output_path = AUDIO_OUTPUT_DIR / output_id
+    start = time.perf_counter()
+
+    try:
+        audio_meta = _run_with_timeout(
+            cosyvoice2_runner.generate,
+            text=req.text,
+            output_path=str(output_path),
+            speaker=req.speaker,
+            speed=req.speed,
+            format=format_normalized,
+            seed=req.seed,
+            reference_audio_id=req.reference_audio,
+            instruction=req.instruction,
+            stream=req.stream,
+            parameters={
+                "referenceText": req.reference_text,
+                "seed": req.seed,
+            },
+        )
+        _check_output_exists(output_path)
+    except Exception as exc:
+        raise _map_tts_runtime_error(exc)
+
+    return _audio_response(
+        model_id="cosyvoice2-0.5b",
+        modality="text-to-speech",
+        audio_kind="tts",
+        output_id=output_id,
+        output_path=output_path,
+        parameters_used={
+            "text": req.text,
+            "seed": req.seed,
+            "reference_audio": req.reference_audio,
+            "reference_text": req.reference_text,
+            "speed": req.speed,
+            "format": format_normalized,
+        },
+        duration_ms=int((time.perf_counter() - start) * 1000),
+        audio_meta=audio_meta,
+    )
+
+
+@app.post("/generate/tts/indextts2")
+def generate_indextts2(req: IndexTTS2Request):
+    format_normalized = req.format.lower()
+    output_id = f"indextts2_{uuid.uuid4().hex}.{format_normalized}"
+    output_path = AUDIO_OUTPUT_DIR / output_id
+    start = time.perf_counter()
+
+    try:
+        audio_meta = _run_with_timeout(
+            indextts2_runner.generate,
+            text=req.text,
+            output_path=str(output_path),
+            speaker=req.speaker,
+            speed=req.speed,
+            format=format_normalized,
+            seed=req.seed,
+            reference_audio_id=req.reference_audio,
+            emotion=req.emotion,
+            duration_control=req.duration_control,
+            parameters={
+                "referenceText": req.reference_text,
+                "seed": req.seed,
+            },
+        )
+        _check_output_exists(output_path)
+    except Exception as exc:
+        raise _map_tts_runtime_error(exc)
+
+    return _audio_response(
+        model_id="indextts-2",
+        modality="text-to-speech",
+        audio_kind="tts",
+        output_id=output_id,
+        output_path=output_path,
+        parameters_used={
+            "text": req.text,
+            "seed": req.seed,
+            "reference_audio": req.reference_audio,
+            "reference_text": req.reference_text,
+            "speed": req.speed,
+            "format": format_normalized,
         },
         duration_ms=int((time.perf_counter() - start) * 1000),
         audio_meta=audio_meta,
