@@ -37,10 +37,14 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field
 
 from runners.text_to_audio.stable_audio_open import StableAudioOpenRunner
+from runners.text_to_speech.bark_runner import BarkRunner
 from runners.text_to_speech.cosyvoice2_runner import CosyVoice2Runner
 from runners.text_to_speech.fish_speech_runner import FishSpeechRunner
 from runners.text_to_speech.indextts2_runner import IndexTTS2Runner
+from runners.text_to_speech.kokoro_onnx_runner import KokoroONNXRunner
 from runners.text_to_speech.kokoro_runner import KokoroRunner
+from runners.text_to_speech.mms_tts_runner import MMSTTSRunner
+from runners.text_to_speech.speecht5_runner import SpeechT5Runner
 
 TTS_TEXT_MAX_LENGTH = 12000
 TTA_TEXT_MAX_LENGTH = 4000
@@ -74,10 +78,14 @@ app = FastAPI(title="Local AI Audio Generation Server")
 app.mount("/outputs", StaticFiles(directory=str(OUTPUT_ROOT)), name="outputs")
 
 kokoro_runner = KokoroRunner()
+kokoro_onnx_runner = KokoroONNXRunner()
 cosyvoice2_runner = CosyVoice2Runner()
 fish_speech_runner = FishSpeechRunner()
 indextts2_runner = IndexTTS2Runner()
 stable_audio_runner = StableAudioOpenRunner()
+mms_tts_runners = {lang: MMSTTSRunner(lang=lang) for lang in ("eng", "deu", "fra")}
+speecht5_runner = SpeechT5Runner()
+bark_runner = BarkRunner(variant="small")
 
 
 class APIError(Exception):
@@ -149,6 +157,45 @@ class StableAudioRequest(StrictRequestModel):
     steps: int = Field(100, ge=1, le=250)
     guidance_scale: float = Field(7.0, ge=0.0, le=25.0)
     seed: Optional[int] = Field(default=None, ge=0, le=MAX_SEED)
+    format: str = Field("wav", pattern=WAV_ONLY_PATTERN)
+
+
+class MMSTTSRequest(StrictRequestModel):
+    text: str = Field(..., min_length=1, max_length=TTS_TEXT_MAX_LENGTH)
+    language: str = Field("eng", pattern="^(eng|deu|fra)$")
+    speaking_rate: float = Field(1.0, ge=0.1, le=5.0)
+    noise_scale: float = Field(0.667, ge=0.0, le=2.0)
+    noise_scale_duration: float = Field(0.8, ge=0.0, le=2.0)
+    format: str = Field("wav", pattern=WAV_ONLY_PATTERN)
+
+
+class SpeechT5Request(StrictRequestModel):
+    text: str = Field(..., min_length=1, max_length=TTS_TEXT_MAX_LENGTH)
+    speaker_index: int = Field(7306, ge=0, le=7930)
+    threshold: float = Field(0.5, ge=0.0, le=1.0)
+    minlenratio: float = Field(0.0, ge=0.0, le=10.0)
+    maxlenratio: float = Field(20.0, ge=1.0, le=50.0)
+    format: str = Field("wav", pattern=WAV_ONLY_PATTERN)
+
+
+class BarkRequest(StrictRequestModel):
+    text: str = Field(..., min_length=1, max_length=TTS_TEXT_MAX_LENGTH)
+    voice_preset: str = Field("v2/en_speaker_6", min_length=1, max_length=100)
+    do_sample: bool = Field(True)
+    temperature: float = Field(1.0, ge=0.0, le=2.0)
+    semantic_temperature: float = Field(1.0, ge=0.0, le=2.0)
+    coarse_temperature: float = Field(1.0, ge=0.0, le=2.0)
+    fine_temperature: float = Field(1.0, ge=0.0, le=2.0)
+    semantic_max_new_tokens: int = Field(768, ge=1, le=2048)
+    coarse_max_new_tokens: int = Field(1536, ge=1, le=4096)
+    fine_max_new_tokens: int = Field(1536, ge=1, le=4096)
+    format: str = Field("wav", pattern=WAV_ONLY_PATTERN)
+
+
+class KokoroONNXRequest(StrictRequestModel):
+    text: str = Field(..., min_length=1, max_length=TTS_TEXT_MAX_LENGTH)
+    voice: str = Field("af_heart", min_length=1, max_length=100)
+    speed: float = Field(1.0, ge=0.1, le=5.0)
     format: str = Field("wav", pattern=WAV_ONLY_PATTERN)
 
 
@@ -257,6 +304,65 @@ def _model_registry() -> list[dict[str, Any]]:
                 "steps": _field_spec("integer", default=100, minimum=1, maximum=250),
                 "guidance_scale": _field_spec("number", default=7.0, minimum=0.0, maximum=25.0),
                 "seed": _field_spec("integer", required=False, minimum=0, maximum=MAX_SEED),
+                "format": _field_spec("string", default="wav", enum=["wav"]),
+            },
+        },
+        {
+            "id": "mms-tts",
+            "displayName": "MMS-TTS (eng/deu/fra)",
+            "modality": "text-to-speech",
+            "endpoint": "/generate/tts/mms-tts",
+            "fields": {
+                "text": _field_spec("string", required=True, max_length=TTS_TEXT_MAX_LENGTH),
+                "language": _field_spec("string", default="eng", enum=["eng", "deu", "fra"]),
+                "speaking_rate": _field_spec("number", default=1.0, minimum=0.1, maximum=5.0),
+                "noise_scale": _field_spec("number", default=0.667, minimum=0.0, maximum=2.0),
+                "noise_scale_duration": _field_spec("number", default=0.8, minimum=0.0, maximum=2.0),
+                "format": _field_spec("string", default="wav", enum=["wav"]),
+            },
+        },
+        {
+            "id": "speecht5-tts",
+            "displayName": "SpeechT5 TTS",
+            "modality": "text-to-speech",
+            "endpoint": "/generate/tts/speecht5",
+            "fields": {
+                "text": _field_spec("string", required=True, max_length=TTS_TEXT_MAX_LENGTH),
+                "speaker_index": _field_spec("integer", default=7306, minimum=0, maximum=7930),
+                "threshold": _field_spec("number", default=0.5, minimum=0.0, maximum=1.0),
+                "minlenratio": _field_spec("number", default=0.0, minimum=0.0, maximum=10.0),
+                "maxlenratio": _field_spec("number", default=20.0, minimum=1.0, maximum=50.0),
+                "format": _field_spec("string", default="wav", enum=["wav"]),
+            },
+        },
+        {
+            "id": "bark-small",
+            "displayName": "Bark Small",
+            "modality": "text-to-speech",
+            "endpoint": "/generate/tts/bark",
+            "fields": {
+                "text": _field_spec("string", required=True, max_length=TTS_TEXT_MAX_LENGTH),
+                "voice_preset": _field_spec("string", default="v2/en_speaker_6"),
+                "do_sample": _field_spec("boolean", default=True),
+                "temperature": _field_spec("number", default=1.0, minimum=0.0, maximum=2.0),
+                "semantic_temperature": _field_spec("number", default=1.0, minimum=0.0, maximum=2.0),
+                "coarse_temperature": _field_spec("number", default=1.0, minimum=0.0, maximum=2.0),
+                "fine_temperature": _field_spec("number", default=1.0, minimum=0.0, maximum=2.0),
+                "semantic_max_new_tokens": _field_spec("integer", default=768, minimum=1, maximum=2048),
+                "coarse_max_new_tokens": _field_spec("integer", default=1536, minimum=1, maximum=4096),
+                "fine_max_new_tokens": _field_spec("integer", default=1536, minimum=1, maximum=4096),
+                "format": _field_spec("string", default="wav", enum=["wav"]),
+            },
+        },
+        {
+            "id": "kokoro-82m-onnx",
+            "displayName": "Kokoro-82M ONNX",
+            "modality": "text-to-speech",
+            "endpoint": "/generate/tts/kokoro-onnx",
+            "fields": {
+                "text": _field_spec("string", required=True, max_length=TTS_TEXT_MAX_LENGTH),
+                "voice": _field_spec("string", default="af_heart"),
+                "speed": _field_spec("number", default=1.0, minimum=0.1, maximum=5.0),
                 "format": _field_spec("string", default="wav", enum=["wav"]),
             },
         },
@@ -650,6 +756,179 @@ def generate_stable_audio(req: StableAudioRequest):
             "steps": req.steps,
             "guidance_scale": req.guidance_scale,
             "seed": req.seed,
+            "format": format_normalized,
+        },
+        duration_ms=int((time.perf_counter() - start) * 1000),
+        audio_meta=audio_meta,
+    )
+
+
+@app.post("/generate/tts/mms-tts")
+def generate_mms_tts(req: MMSTTSRequest):
+    format_normalized = req.format.lower()
+    lang = req.language.lower()
+    output_id = f"mms_{uuid.uuid4().hex}.{format_normalized}"
+    output_path = AUDIO_OUTPUT_DIR / output_id
+
+    if lang not in mms_tts_runners:
+        raise APIError(
+            code="VALIDATION_ERROR",
+            message=f"Unsupported MMS-TTS language '{lang}'. Supported: eng, deu, fra.",
+            status_code=422,
+        )
+
+    start = time.perf_counter()
+    try:
+        audio_meta = _run_with_timeout(
+            mms_tts_runners[lang].generate,
+            text=req.text,
+            output_path=str(output_path),
+            speaking_rate=req.speaking_rate,
+            noise_scale=req.noise_scale,
+            noise_scale_duration=req.noise_scale_duration,
+        )
+        _check_output_exists(output_path)
+    except Exception as exc:
+        raise _map_tts_runtime_error(exc)
+
+    return _audio_response(
+        model_id=f"mms-tts-{lang}",
+        modality="text-to-speech",
+        audio_kind="tts",
+        output_id=output_id,
+        output_path=output_path,
+        parameters_used={
+            "text": req.text,
+            "language": lang,
+            "speaking_rate": req.speaking_rate,
+            "noise_scale": req.noise_scale,
+            "noise_scale_duration": req.noise_scale_duration,
+            "format": format_normalized,
+        },
+        duration_ms=int((time.perf_counter() - start) * 1000),
+        audio_meta=audio_meta,
+    )
+
+
+@app.post("/generate/tts/speecht5")
+def generate_speecht5(req: SpeechT5Request):
+    format_normalized = req.format.lower()
+    output_id = f"speecht5_{uuid.uuid4().hex}.{format_normalized}"
+    output_path = AUDIO_OUTPUT_DIR / output_id
+    start = time.perf_counter()
+
+    try:
+        audio_meta = _run_with_timeout(
+            speecht5_runner.generate,
+            text=req.text,
+            output_path=str(output_path),
+            speaker_index=req.speaker_index,
+            threshold=req.threshold,
+            minlenratio=req.minlenratio,
+            maxlenratio=req.maxlenratio,
+        )
+        _check_output_exists(output_path)
+    except Exception as exc:
+        raise _map_tts_runtime_error(exc)
+
+    return _audio_response(
+        model_id="speecht5-tts",
+        modality="text-to-speech",
+        audio_kind="tts",
+        output_id=output_id,
+        output_path=output_path,
+        parameters_used={
+            "text": req.text,
+            "speaker_index": req.speaker_index,
+            "threshold": req.threshold,
+            "minlenratio": req.minlenratio,
+            "maxlenratio": req.maxlenratio,
+            "format": format_normalized,
+        },
+        duration_ms=int((time.perf_counter() - start) * 1000),
+        audio_meta=audio_meta,
+    )
+
+
+@app.post("/generate/tts/bark")
+def generate_bark(req: BarkRequest):
+    format_normalized = req.format.lower()
+    output_id = f"bark_{uuid.uuid4().hex}.{format_normalized}"
+    output_path = AUDIO_OUTPUT_DIR / output_id
+    start = time.perf_counter()
+
+    try:
+        audio_meta = _run_with_timeout(
+            bark_runner.generate,
+            text=req.text,
+            output_path=str(output_path),
+            voice_preset=req.voice_preset,
+            do_sample=req.do_sample,
+            temperature=req.temperature,
+            semantic_temperature=req.semantic_temperature,
+            coarse_temperature=req.coarse_temperature,
+            fine_temperature=req.fine_temperature,
+            semantic_max_new_tokens=req.semantic_max_new_tokens,
+            coarse_max_new_tokens=req.coarse_max_new_tokens,
+            fine_max_new_tokens=req.fine_max_new_tokens,
+        )
+        _check_output_exists(output_path)
+    except Exception as exc:
+        raise _map_tts_runtime_error(exc)
+
+    return _audio_response(
+        model_id="bark-small",
+        modality="text-to-speech",
+        audio_kind="tts",
+        output_id=output_id,
+        output_path=output_path,
+        parameters_used={
+            "text": req.text,
+            "voice_preset": req.voice_preset,
+            "do_sample": req.do_sample,
+            "temperature": req.temperature,
+            "semantic_temperature": req.semantic_temperature,
+            "coarse_temperature": req.coarse_temperature,
+            "fine_temperature": req.fine_temperature,
+            "semantic_max_new_tokens": req.semantic_max_new_tokens,
+            "coarse_max_new_tokens": req.coarse_max_new_tokens,
+            "fine_max_new_tokens": req.fine_max_new_tokens,
+            "format": format_normalized,
+        },
+        duration_ms=int((time.perf_counter() - start) * 1000),
+        audio_meta=audio_meta,
+    )
+
+
+@app.post("/generate/tts/kokoro-onnx")
+def generate_kokoro_onnx(req: KokoroONNXRequest):
+    format_normalized = req.format.lower()
+    output_id = f"kokoro_onnx_{uuid.uuid4().hex}.{format_normalized}"
+    output_path = AUDIO_OUTPUT_DIR / output_id
+    start = time.perf_counter()
+
+    try:
+        audio_meta = _run_with_timeout(
+            kokoro_onnx_runner.generate,
+            text=req.text,
+            output_path=str(output_path),
+            voice=req.voice,
+            speed=req.speed,
+        )
+        _check_output_exists(output_path)
+    except Exception as exc:
+        raise _map_tts_runtime_error(exc)
+
+    return _audio_response(
+        model_id="kokoro-82m-onnx",
+        modality="text-to-speech",
+        audio_kind="tts",
+        output_id=output_id,
+        output_path=output_path,
+        parameters_used={
+            "text": req.text,
+            "voice": req.voice,
+            "speed": req.speed,
             "format": format_normalized,
         },
         duration_ms=int((time.perf_counter() - start) * 1000),

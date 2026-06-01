@@ -21,6 +21,8 @@ class KokoroRunner:
         speed: float = 1.0,
         lang_code: str = "a",
         sample_rate: int = 24000,
+        split_pattern: str = r"\n+",
+        **kwargs,
     ) -> dict:
         pipeline = self.load(lang_code=lang_code)
 
@@ -28,7 +30,7 @@ class KokoroRunner:
             text,
             voice=voice,
             speed=float(speed),
-            split_pattern=r"\n+",
+            split_pattern=split_pattern,
         )
 
         audio_segments = []
@@ -47,4 +49,10 @@ class KokoroRunner:
             "output_path": output_path,
             "sample_rate": int(sample_rate),
             "duration_seconds": duration_seconds,
+            "parameters": {
+                "voice": voice,
+                "speed": speed,
+                "lang_code": lang_code,
+                "split_pattern": split_pattern,
+            },
         }
