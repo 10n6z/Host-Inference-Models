@@ -65,42 +65,65 @@ def get_test_registry():
         None,
     ))
 
-    # --- Tier 2: Likely work but need extra packages or bigger downloads ---
+    # --- Tier 2: Models with extra packages (now installed) ---
 
+    registry.append((
+        "facebook--mms-tts-spa",
+        lambda: _test_mms("spa"),
+        None,
+    ))
     registry.append((
         "suno--bark",
         lambda: _test_bark("full"),
-        "SKIP: bark full ~3GB download, use bark-small for smoke",
+        None,
     ))
     registry.append((
         "ylacombe--parler-tts-mini-jenny-30H",
         lambda: _test_parler_tts(),
-        "SKIP: requires parler-tts package (separate install)",
+        "SKIP: parler-tts 0.2.x incompatible with transformers >=5.0",
     ))
     registry.append((
         "OuteAI--OuteTTS-0.2-500M",
         lambda: _test_outetts("0.2-500M"),
-        "SKIP: requires outetts package (separate install)",
+        None,
     ))
     registry.append((
         "OuteAI--OuteTTS-0.3-1B",
         lambda: _test_outetts("0.3-1B"),
-        "SKIP: requires outetts package + 1B model download",
+        None,
     ))
     registry.append((
         "myshell-ai--MeloTTS-English",
-        lambda: None,
-        "SKIP: requires melo package (not pip-installable easily on macOS)",
-    ))
-    registry.append((
-        "coqui--XTTS-v2",
-        lambda: None,
-        "SKIP: requires TTS package + model weights (~1.8GB)",
+        lambda: _test_melotts(),
+        None,
     ))
     registry.append((
         "espnet--kan-bayashi_ljspeech_vits",
-        lambda: None,
-        "SKIP: requires espnet2 package (heavy install)",
+        lambda: _test_espnet_vits(),
+        None,
+    ))
+
+    # --- Tier 2b: Models with extra packages (now installed) ---
+
+    registry.append((
+        "ResembleAI--chatterbox",
+        lambda: _test_chatterbox(),
+        None,
+    ))
+    registry.append((
+        "SWivid--F5-TTS",
+        lambda: _test_f5_tts(),
+        None,
+    ))
+    registry.append((
+        "SWivid--E2-TTS",
+        lambda: _test_e2_tts(),
+        None,
+    ))
+    registry.append((
+        "KittenML--kitten-tts-nano-0.2",
+        lambda: _test_kitten_tts(),
+        None,
     ))
 
     # --- Tier 3: Large models requiring CUDA or >24GB RAM ---
@@ -118,27 +141,22 @@ def get_test_registry():
     registry.append((
         "microsoft--VibeVoice-1.5B",
         lambda: None,
-        "SKIP: 1.5B model, requires model weights download (~3GB)",
+        "SKIP: 1.5B model, not supported in current transformers",
     ))
     registry.append((
         "sesame--csm-1b",
         lambda: None,
-        "SKIP: 1B model, requires custom runtime",
+        "SKIP: 1B gated model, requires HF access approval",
     ))
     registry.append((
         "OrpheusTTS--Orpheus-3b-0.1-ft",
         lambda: None,
-        "SKIP: 3B model requires ~6GB RAM, no weights locally",
+        "SKIP: 3B model, repository removed from HuggingFace",
     ))
     registry.append((
         "canopylabs--orpheus-tts-0.1-finetune-prod",
         lambda: None,
-        "SKIP: orpheus variant, requires custom audio codec",
-    ))
-    registry.append((
-        "ResembleAI--chatterbox",
-        lambda: None,
-        "SKIP: requires chatterbox package (not widely available)",
+        "SKIP: 3.8B model requires ~15GB RAM",
     ))
     registry.append((
         "Amphion--MaskGCT",
@@ -161,24 +179,14 @@ def get_test_registry():
         "SKIP: requires cosyvoice runtime (custom install)",
     ))
     registry.append((
-        "SWivid--F5-TTS",
-        lambda: None,
-        "SKIP: requires f5-tts package + reference audio",
-    ))
-    registry.append((
-        "SWivid--E2-TTS",
-        lambda: None,
-        "SKIP: requires f5-tts package + reference audio",
-    ))
-    registry.append((
         "fishaudio--openaudio-s1-mini",
         lambda: None,
         "SKIP: requires fish-speech runtime",
     ))
     registry.append((
-        "KittenML--kitten-tts-nano-0.2",
+        "coqui--XTTS-v2",
         lambda: None,
-        "SKIP: requires custom model runtime, no public package",
+        "SKIP: requires TTS package compatible with transformers <5.0",
     ))
     registry.append((
         "MiniMaxAI--Speech-02-HD",
@@ -210,6 +218,11 @@ def _test_mms(lang: str):
             "speaking_rate": 1.8,
             "noise_scale": 0.1,
             "noise_scale_duration": 0.3,
+        },
+        "spa": {
+            "speaking_rate": 1.1,
+            "noise_scale": 0.5,
+            "noise_scale_duration": 0.7,
         },
     }
 
@@ -363,8 +376,138 @@ def _test_outetts(variant: str):
     from runners.text_to_speech.outetts_runner import OuteTTSRunner
 
     runner = OuteTTSRunner(variant=variant)
-    out_path = str(OUTPUT_DIR / f"outetts_{variant}.wav")
-    result = runner.generate(text=SMOKE_TEXT, output_path=out_path)
+    out_path = str(OUTPUT_DIR / f"outetts_{variant}_advanced.wav")
+    result = runner.generate(
+        text=SMOKE_TEXT,
+        output_path=out_path,
+        temperature=0.3,
+        repetition_penalty=1.2,
+        max_length=2048,
+    )
+    params = result.get("parameters", {})
+    assert params.get("temperature") == 0.3, \
+        f"temperature mismatch: got {params.get('temperature')}"
+    assert params.get("repetition_penalty") == 1.2
+    assert params.get("max_length") == 2048
+    print(f"  params: temperature=0.3, repetition_penalty=1.2, max_length=2048")
+    return result
+
+
+def _test_chatterbox():
+    sys.path.insert(0, str(Path(__file__).parent / "servers"))
+    from runners.text_to_speech.chatterbox_runner import ChatterboxRunner
+
+    runner = ChatterboxRunner()
+    out_path = str(OUTPUT_DIR / "chatterbox_advanced.wav")
+    result = runner.generate(
+        text=SMOKE_TEXT,
+        output_path=out_path,
+        exaggeration=0.7,
+        cfg_weight=0.3,
+    )
+    params = result.get("parameters", {})
+    assert params.get("exaggeration") == 0.7, \
+        f"exaggeration mismatch: got {params.get('exaggeration')}"
+    assert params.get("cfg_weight") == 0.3
+    print(f"  params: exaggeration=0.7, cfg_weight=0.3")
+    return result
+
+
+def _test_f5_tts():
+    sys.path.insert(0, str(Path(__file__).parent / "servers"))
+    from runners.text_to_speech.f5_tts_runner import F5TTSRunner
+
+    runner = F5TTSRunner()
+    out_path = str(OUTPUT_DIR / "f5_tts_advanced.wav")
+    result = runner.generate(
+        text=SMOKE_TEXT,
+        output_path=out_path,
+        speed=1.2,
+    )
+    params = result.get("parameters", {})
+    assert params.get("speed") == 1.2, \
+        f"speed mismatch: got {params.get('speed')}"
+    print(f"  params: speed=1.2")
+    return result
+
+
+def _test_e2_tts():
+    sys.path.insert(0, str(Path(__file__).parent / "servers"))
+    from runners.text_to_speech.e2_tts_runner import E2TTSRunner
+
+    runner = E2TTSRunner()
+    out_path = str(OUTPUT_DIR / "e2_tts_advanced.wav")
+    result = runner.generate(
+        text=SMOKE_TEXT,
+        output_path=out_path,
+        speed=0.9,
+    )
+    params = result.get("parameters", {})
+    assert params.get("speed") == 0.9, \
+        f"speed mismatch: got {params.get('speed')}"
+    print(f"  params: speed=0.9")
+    return result
+
+
+def _test_espnet_vits():
+    sys.path.insert(0, str(Path(__file__).parent / "servers"))
+    from runners.text_to_speech.espnet_vits_runner import ESPnetVITSRunner
+
+    runner = ESPnetVITSRunner()
+    out_path = str(OUTPUT_DIR / "espnet_vits_advanced.wav")
+    result = runner.generate(
+        text=SMOKE_TEXT,
+        output_path=out_path,
+        alpha=1.2,
+        noise_scale=0.5,
+        noise_scale_dur=0.6,
+    )
+    params = result.get("parameters", {})
+    assert params.get("alpha") == 1.2, \
+        f"alpha mismatch: got {params.get('alpha')}"
+    assert params.get("noise_scale") == 0.5
+    assert params.get("noise_scale_dur") == 0.6
+    print(f"  params: alpha=1.2, noise_scale=0.5, noise_scale_dur=0.6")
+    return result
+
+
+def _test_kitten_tts():
+    sys.path.insert(0, str(Path(__file__).parent / "servers"))
+    from runners.text_to_speech.kitten_tts_runner import KittenTTSRunner
+
+    runner = KittenTTSRunner()
+    out_path = str(OUTPUT_DIR / "kitten_tts_advanced.wav")
+    result = runner.generate(
+        text=SMOKE_TEXT,
+        output_path=out_path,
+        voice="expr-voice-2-f",
+        speed=1.3,
+    )
+    params = result.get("parameters", {})
+    assert params.get("voice") == "expr-voice-2-f", \
+        f"voice mismatch: got {params.get('voice')}"
+    assert params.get("speed") == 1.3
+    print(f"  params: voice=expr-voice-2-f, speed=1.3")
+    return result
+
+
+def _test_melotts():
+    sys.path.insert(0, str(Path(__file__).parent / "servers"))
+    from runners.text_to_speech.melotts_runner import MeloTTSRunner
+
+    runner = MeloTTSRunner()
+    out_path = str(OUTPUT_DIR / "melotts_advanced.wav")
+    result = runner.generate(
+        text=SMOKE_TEXT,
+        output_path=out_path,
+        speed=1.1,
+        speaker_id=0,
+    )
+    params = result.get("parameters", {})
+    assert params.get("speed") == 1.1, \
+        f"speed mismatch: got {params.get('speed')}"
+    assert params.get("speaker_id") == 0
+    print(f"  params: speed=1.1, speaker_id=0")
     return result
 
 

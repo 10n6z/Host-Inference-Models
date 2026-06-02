@@ -29,18 +29,49 @@ class OuteTTSRunner:
 
         import outetts
 
-        config = outetts.HFModelConfig_v2(
+        version = outetts.InterfaceVersion.V2
+        config = outetts.ModelConfig(
             model_path=self.model_id,
             tokenizer_path=self.model_id,
+            interface_version=version,
+            backend=outetts.Backend.HF,
         )
-        self.interface = outetts.InterfaceHF(model_version="0.3" if "0.3" in self.variant else "0.2", cfg=config)
+        self.interface = outetts.Interface(config)
 
-    def generate(self, *, text: str, output_path: str, **kwargs) -> dict:
+    def generate(
+        self,
+        *,
+        text: str,
+        output_path: str,
+        temperature: float = 0.1,
+        repetition_penalty: float = 1.1,
+        max_length: int = 4096,
+        **kwargs,
+    ) -> dict:
         self.load()
+        import outetts
 
-        output = self.interface.generate(text=text, temperature=0.1, repetition_penalty=1.1, max_length=4096)
+        sampler = outetts.SamplerConfig(
+            temperature=temperature,
+            repetition_penalty=repetition_penalty,
+        )
+        gen_config = outetts.GenerationConfig(
+            text=text,
+            sampler_config=sampler,
+            max_length=max_length,
+        )
+        output = self.interface.generate(gen_config)
         output.save(output_path)
 
         info = sf.info(output_path)
         duration = float(info.frames / info.samplerate)
-        return {"output_path": output_path, "sample_rate": info.samplerate, "duration_seconds": duration}
+        return {
+            "output_path": output_path,
+            "sample_rate": info.samplerate,
+            "duration_seconds": duration,
+            "parameters": {
+                "temperature": temperature,
+                "repetition_penalty": repetition_penalty,
+                "max_length": max_length,
+            },
+        }

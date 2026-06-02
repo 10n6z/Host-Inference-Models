@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import tempfile
 from pathlib import Path
 
 import numpy as np
@@ -16,6 +17,17 @@ class E2TTSRunner:
         self.local_path = local_path if local_path.is_dir() else None
         self.model = None
         self.sample_rate = 24000
+        self._ref_file = None
+
+    def _ensure_reference_audio(self) -> str:
+        if self._ref_file and os.path.exists(self._ref_file):
+            return self._ref_file
+        fd, path = tempfile.mkstemp(suffix=".wav")
+        os.close(fd)
+        silence = np.zeros(24000, dtype=np.float32)
+        sf.write(path, silence, 24000)
+        self._ref_file = path
+        return path
 
     def load(self):
         if self.model is not None:
@@ -23,14 +35,40 @@ class E2TTSRunner:
 
         from f5_tts.api import F5TTS
 
-        self.model = F5TTS(model_type="E2-TTS", ckpt_file="", device="cpu")
+        self.model = F5TTS(model="E2TTS_Base", ckpt_file="", device="cpu")
         self.sample_rate = 24000
 
-    def generate(self, *, text: str, output_path: str, **kwargs) -> dict:
+    def generate(
+        self,
+        *,
+        text: str,
+        output_path: str,
+        ref_file: str = "",
+        ref_text: str = "",
+        speed: float = 1.0,
+        **kwargs,
+    ) -> dict:
         self.load()
 
-        audio, sr, _ = self.model.infer(ref_file="", ref_text="", gen_text=text)
+        actual_ref = ref_file if ref_file and os.path.exists(ref_file) else self._ensure_reference_audio()
+        actual_ref_text = ref_text if ref_text else " "
+
+        audio, sr, _ = self.model.infer(
+            ref_file=actual_ref,
+            ref_text=actual_ref_text,
+            gen_text=text,
+            speed=speed,
+        )
         self.sample_rate = sr if sr else self.sample_rate
         sf.write(output_path, audio, self.sample_rate)
         duration = float(len(audio) / self.sample_rate)
-        return {"output_path": output_path, "sample_rate": self.sample_rate, "duration_seconds": duration}
+        return {
+            "output_path": output_path,
+            "sample_rate": self.sample_rate,
+            "duration_seconds": duration,
+            "parameters": {
+                "ref_file": ref_file,
+                "ref_text": ref_text,
+                "speed": speed,
+            },
+        }

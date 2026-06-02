@@ -38,12 +38,19 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from runners.text_to_audio.stable_audio_open import StableAudioOpenRunner
 from runners.text_to_speech.bark_runner import BarkRunner
+from runners.text_to_speech.chatterbox_runner import ChatterboxRunner
 from runners.text_to_speech.cosyvoice2_runner import CosyVoice2Runner
+from runners.text_to_speech.e2_tts_runner import E2TTSRunner
+from runners.text_to_speech.espnet_vits_runner import ESPnetVITSRunner
+from runners.text_to_speech.f5_tts_runner import F5TTSRunner
 from runners.text_to_speech.fish_speech_runner import FishSpeechRunner
 from runners.text_to_speech.indextts2_runner import IndexTTS2Runner
+from runners.text_to_speech.kitten_tts_runner import KittenTTSRunner
 from runners.text_to_speech.kokoro_onnx_runner import KokoroONNXRunner
 from runners.text_to_speech.kokoro_runner import KokoroRunner
+from runners.text_to_speech.melotts_runner import MeloTTSRunner
 from runners.text_to_speech.mms_tts_runner import MMSTTSRunner
+from runners.text_to_speech.outetts_runner import OuteTTSRunner
 from runners.text_to_speech.speecht5_runner import SpeechT5Runner
 
 TTS_TEXT_MAX_LENGTH = 12000
@@ -83,9 +90,20 @@ cosyvoice2_runner = CosyVoice2Runner()
 fish_speech_runner = FishSpeechRunner()
 indextts2_runner = IndexTTS2Runner()
 stable_audio_runner = StableAudioOpenRunner()
-mms_tts_runners = {lang: MMSTTSRunner(lang=lang) for lang in ("eng", "deu", "fra")}
+mms_tts_runners = {lang: MMSTTSRunner(lang=lang) for lang in ("eng", "deu", "fra", "spa")}
 speecht5_runner = SpeechT5Runner()
 bark_runner = BarkRunner(variant="small")
+bark_full_runner = BarkRunner(variant="full")
+outetts_runners = {
+    "0.2-500M": OuteTTSRunner(variant="0.2-500M"),
+    "0.3-1B": OuteTTSRunner(variant="0.3-1B"),
+}
+melotts_runner = MeloTTSRunner()
+espnet_vits_runner = ESPnetVITSRunner()
+chatterbox_runner = ChatterboxRunner()
+f5_tts_runner = F5TTSRunner()
+e2_tts_runner = E2TTSRunner()
+kitten_tts_runner = KittenTTSRunner()
 
 
 class APIError(Exception):
@@ -162,7 +180,7 @@ class StableAudioRequest(StrictRequestModel):
 
 class MMSTTSRequest(StrictRequestModel):
     text: str = Field(..., min_length=1, max_length=TTS_TEXT_MAX_LENGTH)
-    language: str = Field("eng", pattern="^(eng|deu|fra)$")
+    language: str = Field("eng", pattern="^(eng|deu|fra|spa)$")
     speaking_rate: float = Field(1.0, ge=0.1, le=5.0)
     noise_scale: float = Field(0.667, ge=0.0, le=2.0)
     noise_scale_duration: float = Field(0.8, ge=0.0, le=2.0)
@@ -196,6 +214,60 @@ class KokoroONNXRequest(StrictRequestModel):
     text: str = Field(..., min_length=1, max_length=TTS_TEXT_MAX_LENGTH)
     voice: str = Field("af_heart", min_length=1, max_length=100)
     speed: float = Field(1.0, ge=0.1, le=5.0)
+    format: str = Field("wav", pattern=WAV_ONLY_PATTERN)
+
+
+class OuteTTSRequest(StrictRequestModel):
+    text: str = Field(..., min_length=1, max_length=TTS_TEXT_MAX_LENGTH)
+    variant: str = Field("0.2-500M", pattern="^(0\\.2-500M|0\\.3-1B)$")
+    temperature: float = Field(0.1, ge=0.0, le=2.0)
+    repetition_penalty: float = Field(1.1, ge=1.0, le=3.0)
+    max_length: int = Field(4096, ge=256, le=8192)
+    format: str = Field("wav", pattern=WAV_ONLY_PATTERN)
+
+
+class MeloTTSRequest(StrictRequestModel):
+    text: str = Field(..., min_length=1, max_length=TTS_TEXT_MAX_LENGTH)
+    speed: float = Field(1.0, ge=0.5, le=3.0)
+    speaker_id: int = Field(0, ge=0, le=10)
+    format: str = Field("wav", pattern=WAV_ONLY_PATTERN)
+
+
+class ESPnetVITSRequest(StrictRequestModel):
+    text: str = Field(..., min_length=1, max_length=TTS_TEXT_MAX_LENGTH)
+    alpha: float = Field(1.0, ge=0.1, le=3.0)
+    noise_scale: float = Field(0.667, ge=0.0, le=2.0)
+    noise_scale_dur: float = Field(0.8, ge=0.0, le=2.0)
+    format: str = Field("wav", pattern=WAV_ONLY_PATTERN)
+
+
+class ChatterboxRequest(StrictRequestModel):
+    text: str = Field(..., min_length=1, max_length=TTS_TEXT_MAX_LENGTH)
+    exaggeration: float = Field(0.5, ge=0.0, le=2.0)
+    cfg_weight: float = Field(0.5, ge=0.0, le=2.0)
+    format: str = Field("wav", pattern=WAV_ONLY_PATTERN)
+
+
+class F5TTSRequest(StrictRequestModel):
+    text: str = Field(..., min_length=1, max_length=TTS_TEXT_MAX_LENGTH)
+    ref_file: str = Field("", max_length=MAX_REF_AUDIO_PATH_LENGTH)
+    ref_text: str = Field("", max_length=MAX_REFERENCE_TEXT_LENGTH)
+    speed: float = Field(1.0, ge=0.5, le=3.0)
+    format: str = Field("wav", pattern=WAV_ONLY_PATTERN)
+
+
+class E2TTSRequest(StrictRequestModel):
+    text: str = Field(..., min_length=1, max_length=TTS_TEXT_MAX_LENGTH)
+    ref_file: str = Field("", max_length=MAX_REF_AUDIO_PATH_LENGTH)
+    ref_text: str = Field("", max_length=MAX_REFERENCE_TEXT_LENGTH)
+    speed: float = Field(1.0, ge=0.5, le=3.0)
+    format: str = Field("wav", pattern=WAV_ONLY_PATTERN)
+
+
+class KittenTTSRequest(StrictRequestModel):
+    text: str = Field(..., min_length=1, max_length=TTS_TEXT_MAX_LENGTH)
+    voice: str = Field("expr-voice-2-m", min_length=1, max_length=100)
+    speed: float = Field(1.0, ge=0.5, le=3.0)
     format: str = Field("wav", pattern=WAV_ONLY_PATTERN)
 
 
@@ -309,12 +381,12 @@ def _model_registry() -> list[dict[str, Any]]:
         },
         {
             "id": "mms-tts",
-            "displayName": "MMS-TTS (eng/deu/fra)",
+            "displayName": "MMS-TTS (eng/deu/fra/spa)",
             "modality": "text-to-speech",
             "endpoint": "/generate/tts/mms-tts",
             "fields": {
                 "text": _field_spec("string", required=True, max_length=TTS_TEXT_MAX_LENGTH),
-                "language": _field_spec("string", default="eng", enum=["eng", "deu", "fra"]),
+                "language": _field_spec("string", default="eng", enum=["eng", "deu", "fra", "spa"]),
                 "speaking_rate": _field_spec("number", default=1.0, minimum=0.1, maximum=5.0),
                 "noise_scale": _field_spec("number", default=0.667, minimum=0.0, maximum=2.0),
                 "noise_scale_duration": _field_spec("number", default=0.8, minimum=0.0, maximum=2.0),
@@ -363,6 +435,108 @@ def _model_registry() -> list[dict[str, Any]]:
                 "text": _field_spec("string", required=True, max_length=TTS_TEXT_MAX_LENGTH),
                 "voice": _field_spec("string", default="af_heart"),
                 "speed": _field_spec("number", default=1.0, minimum=0.1, maximum=5.0),
+                "format": _field_spec("string", default="wav", enum=["wav"]),
+            },
+        },
+        {
+            "id": "bark-full",
+            "displayName": "Bark Full",
+            "modality": "text-to-speech",
+            "endpoint": "/generate/tts/bark-full",
+            "fields": {
+                "text": _field_spec("string", required=True, max_length=TTS_TEXT_MAX_LENGTH),
+                "voice_preset": _field_spec("string", default="v2/en_speaker_6"),
+                "do_sample": _field_spec("boolean", default=True),
+                "temperature": _field_spec("number", default=1.0, minimum=0.0, maximum=2.0),
+                "format": _field_spec("string", default="wav", enum=["wav"]),
+            },
+        },
+        {
+            "id": "outetts",
+            "displayName": "OuteTTS (0.2-500M / 0.3-1B)",
+            "modality": "text-to-speech",
+            "endpoint": "/generate/tts/outetts",
+            "fields": {
+                "text": _field_spec("string", required=True, max_length=TTS_TEXT_MAX_LENGTH),
+                "variant": _field_spec("string", default="0.2-500M", enum=["0.2-500M", "0.3-1B"]),
+                "temperature": _field_spec("number", default=0.1, minimum=0.0, maximum=2.0),
+                "repetition_penalty": _field_spec("number", default=1.1, minimum=1.0, maximum=3.0),
+                "max_length": _field_spec("integer", default=4096, minimum=256, maximum=8192),
+                "format": _field_spec("string", default="wav", enum=["wav"]),
+            },
+        },
+        {
+            "id": "melotts",
+            "displayName": "MeloTTS English",
+            "modality": "text-to-speech",
+            "endpoint": "/generate/tts/melotts",
+            "fields": {
+                "text": _field_spec("string", required=True, max_length=TTS_TEXT_MAX_LENGTH),
+                "speed": _field_spec("number", default=1.0, minimum=0.5, maximum=3.0),
+                "speaker_id": _field_spec("integer", default=0, minimum=0, maximum=10),
+                "format": _field_spec("string", default="wav", enum=["wav"]),
+            },
+        },
+        {
+            "id": "espnet-vits",
+            "displayName": "ESPnet VITS (LJSpeech)",
+            "modality": "text-to-speech",
+            "endpoint": "/generate/tts/espnet-vits",
+            "fields": {
+                "text": _field_spec("string", required=True, max_length=TTS_TEXT_MAX_LENGTH),
+                "alpha": _field_spec("number", default=1.0, minimum=0.1, maximum=3.0),
+                "noise_scale": _field_spec("number", default=0.667, minimum=0.0, maximum=2.0),
+                "noise_scale_dur": _field_spec("number", default=0.8, minimum=0.0, maximum=2.0),
+                "format": _field_spec("string", default="wav", enum=["wav"]),
+            },
+        },
+        {
+            "id": "chatterbox",
+            "displayName": "Chatterbox TTS",
+            "modality": "text-to-speech",
+            "endpoint": "/generate/tts/chatterbox",
+            "fields": {
+                "text": _field_spec("string", required=True, max_length=TTS_TEXT_MAX_LENGTH),
+                "exaggeration": _field_spec("number", default=0.5, minimum=0.0, maximum=2.0),
+                "cfg_weight": _field_spec("number", default=0.5, minimum=0.0, maximum=2.0),
+                "format": _field_spec("string", default="wav", enum=["wav"]),
+            },
+        },
+        {
+            "id": "f5-tts",
+            "displayName": "F5-TTS",
+            "modality": "text-to-speech",
+            "endpoint": "/generate/tts/f5-tts",
+            "fields": {
+                "text": _field_spec("string", required=True, max_length=TTS_TEXT_MAX_LENGTH),
+                "ref_file": _field_spec("string", required=False, max_length=MAX_REF_AUDIO_PATH_LENGTH),
+                "ref_text": _field_spec("string", required=False, max_length=MAX_REFERENCE_TEXT_LENGTH),
+                "speed": _field_spec("number", default=1.0, minimum=0.5, maximum=3.0),
+                "format": _field_spec("string", default="wav", enum=["wav"]),
+            },
+        },
+        {
+            "id": "e2-tts",
+            "displayName": "E2-TTS",
+            "modality": "text-to-speech",
+            "endpoint": "/generate/tts/e2-tts",
+            "fields": {
+                "text": _field_spec("string", required=True, max_length=TTS_TEXT_MAX_LENGTH),
+                "ref_file": _field_spec("string", required=False, max_length=MAX_REF_AUDIO_PATH_LENGTH),
+                "ref_text": _field_spec("string", required=False, max_length=MAX_REFERENCE_TEXT_LENGTH),
+                "speed": _field_spec("number", default=1.0, minimum=0.5, maximum=3.0),
+                "format": _field_spec("string", default="wav", enum=["wav"]),
+            },
+        },
+        {
+            "id": "kitten-tts",
+            "displayName": "KittenTTS Nano",
+            "modality": "text-to-speech",
+            "endpoint": "/generate/tts/kitten-tts",
+            "fields": {
+                "text": _field_spec("string", required=True, max_length=TTS_TEXT_MAX_LENGTH),
+                "voice": _field_spec("string", default="expr-voice-2-m"),
+                "speed": _field_spec("number", default=1.0, minimum=0.5, maximum=3.0),
                 "format": _field_spec("string", default="wav", enum=["wav"]),
             },
         },
@@ -773,7 +947,7 @@ def generate_mms_tts(req: MMSTTSRequest):
     if lang not in mms_tts_runners:
         raise APIError(
             code="VALIDATION_ERROR",
-            message=f"Unsupported MMS-TTS language '{lang}'. Supported: eng, deu, fra.",
+            message=f"Unsupported MMS-TTS language '{lang}'. Supported: eng, deu, fra, spa.",
             status_code=422,
         )
 
@@ -921,6 +1095,314 @@ def generate_kokoro_onnx(req: KokoroONNXRequest):
 
     return _audio_response(
         model_id="kokoro-82m-onnx",
+        modality="text-to-speech",
+        audio_kind="tts",
+        output_id=output_id,
+        output_path=output_path,
+        parameters_used={
+            "text": req.text,
+            "voice": req.voice,
+            "speed": req.speed,
+            "format": format_normalized,
+        },
+        duration_ms=int((time.perf_counter() - start) * 1000),
+        audio_meta=audio_meta,
+    )
+
+
+@app.post("/generate/tts/bark-full")
+def generate_bark_full(req: BarkRequest):
+    format_normalized = req.format.lower()
+    output_id = f"bark_full_{uuid.uuid4().hex}.{format_normalized}"
+    output_path = AUDIO_OUTPUT_DIR / output_id
+    start = time.perf_counter()
+
+    try:
+        audio_meta = _run_with_timeout(
+            bark_full_runner.generate,
+            text=req.text,
+            output_path=str(output_path),
+            voice_preset=req.voice_preset,
+            do_sample=req.do_sample,
+            temperature=req.temperature,
+            semantic_temperature=req.semantic_temperature,
+            coarse_temperature=req.coarse_temperature,
+            fine_temperature=req.fine_temperature,
+            semantic_max_new_tokens=req.semantic_max_new_tokens,
+            coarse_max_new_tokens=req.coarse_max_new_tokens,
+            fine_max_new_tokens=req.fine_max_new_tokens,
+        )
+        _check_output_exists(output_path)
+    except Exception as exc:
+        raise _map_tts_runtime_error(exc)
+
+    return _audio_response(
+        model_id="bark-full",
+        modality="text-to-speech",
+        audio_kind="tts",
+        output_id=output_id,
+        output_path=output_path,
+        parameters_used={
+            "text": req.text,
+            "voice_preset": req.voice_preset,
+            "temperature": req.temperature,
+            "format": format_normalized,
+        },
+        duration_ms=int((time.perf_counter() - start) * 1000),
+        audio_meta=audio_meta,
+    )
+
+
+@app.post("/generate/tts/outetts")
+def generate_outetts(req: OuteTTSRequest):
+    format_normalized = req.format.lower()
+    output_id = f"outetts_{uuid.uuid4().hex}.{format_normalized}"
+    output_path = AUDIO_OUTPUT_DIR / output_id
+    variant = req.variant
+
+    if variant not in outetts_runners:
+        raise APIError("VALIDATION_ERROR", f"Unsupported OuteTTS variant '{variant}'.", 422)
+
+    start = time.perf_counter()
+    try:
+        audio_meta = _run_with_timeout(
+            outetts_runners[variant].generate,
+            text=req.text,
+            output_path=str(output_path),
+            temperature=req.temperature,
+            repetition_penalty=req.repetition_penalty,
+            max_length=req.max_length,
+        )
+        _check_output_exists(output_path)
+    except Exception as exc:
+        raise _map_tts_runtime_error(exc)
+
+    return _audio_response(
+        model_id=f"outetts-{variant}",
+        modality="text-to-speech",
+        audio_kind="tts",
+        output_id=output_id,
+        output_path=output_path,
+        parameters_used={
+            "text": req.text,
+            "variant": variant,
+            "temperature": req.temperature,
+            "repetition_penalty": req.repetition_penalty,
+            "max_length": req.max_length,
+            "format": format_normalized,
+        },
+        duration_ms=int((time.perf_counter() - start) * 1000),
+        audio_meta=audio_meta,
+    )
+
+
+@app.post("/generate/tts/melotts")
+def generate_melotts(req: MeloTTSRequest):
+    format_normalized = req.format.lower()
+    output_id = f"melotts_{uuid.uuid4().hex}.{format_normalized}"
+    output_path = AUDIO_OUTPUT_DIR / output_id
+    start = time.perf_counter()
+
+    try:
+        audio_meta = _run_with_timeout(
+            melotts_runner.generate,
+            text=req.text,
+            output_path=str(output_path),
+            speed=req.speed,
+            speaker_id=req.speaker_id,
+        )
+        _check_output_exists(output_path)
+    except Exception as exc:
+        raise _map_tts_runtime_error(exc)
+
+    return _audio_response(
+        model_id="melotts",
+        modality="text-to-speech",
+        audio_kind="tts",
+        output_id=output_id,
+        output_path=output_path,
+        parameters_used={
+            "text": req.text,
+            "speed": req.speed,
+            "speaker_id": req.speaker_id,
+            "format": format_normalized,
+        },
+        duration_ms=int((time.perf_counter() - start) * 1000),
+        audio_meta=audio_meta,
+    )
+
+
+@app.post("/generate/tts/espnet-vits")
+def generate_espnet_vits(req: ESPnetVITSRequest):
+    format_normalized = req.format.lower()
+    output_id = f"espnet_{uuid.uuid4().hex}.{format_normalized}"
+    output_path = AUDIO_OUTPUT_DIR / output_id
+    start = time.perf_counter()
+
+    try:
+        audio_meta = _run_with_timeout(
+            espnet_vits_runner.generate,
+            text=req.text,
+            output_path=str(output_path),
+            alpha=req.alpha,
+            noise_scale=req.noise_scale,
+            noise_scale_dur=req.noise_scale_dur,
+        )
+        _check_output_exists(output_path)
+    except Exception as exc:
+        raise _map_tts_runtime_error(exc)
+
+    return _audio_response(
+        model_id="espnet-vits",
+        modality="text-to-speech",
+        audio_kind="tts",
+        output_id=output_id,
+        output_path=output_path,
+        parameters_used={
+            "text": req.text,
+            "alpha": req.alpha,
+            "noise_scale": req.noise_scale,
+            "noise_scale_dur": req.noise_scale_dur,
+            "format": format_normalized,
+        },
+        duration_ms=int((time.perf_counter() - start) * 1000),
+        audio_meta=audio_meta,
+    )
+
+
+@app.post("/generate/tts/chatterbox")
+def generate_chatterbox(req: ChatterboxRequest):
+    format_normalized = req.format.lower()
+    output_id = f"chatterbox_{uuid.uuid4().hex}.{format_normalized}"
+    output_path = AUDIO_OUTPUT_DIR / output_id
+    start = time.perf_counter()
+
+    try:
+        audio_meta = _run_with_timeout(
+            chatterbox_runner.generate,
+            text=req.text,
+            output_path=str(output_path),
+            exaggeration=req.exaggeration,
+            cfg_weight=req.cfg_weight,
+        )
+        _check_output_exists(output_path)
+    except Exception as exc:
+        raise _map_tts_runtime_error(exc)
+
+    return _audio_response(
+        model_id="chatterbox",
+        modality="text-to-speech",
+        audio_kind="tts",
+        output_id=output_id,
+        output_path=output_path,
+        parameters_used={
+            "text": req.text,
+            "exaggeration": req.exaggeration,
+            "cfg_weight": req.cfg_weight,
+            "format": format_normalized,
+        },
+        duration_ms=int((time.perf_counter() - start) * 1000),
+        audio_meta=audio_meta,
+    )
+
+
+@app.post("/generate/tts/f5-tts")
+def generate_f5_tts(req: F5TTSRequest):
+    format_normalized = req.format.lower()
+    output_id = f"f5tts_{uuid.uuid4().hex}.{format_normalized}"
+    output_path = AUDIO_OUTPUT_DIR / output_id
+    start = time.perf_counter()
+
+    try:
+        audio_meta = _run_with_timeout(
+            f5_tts_runner.generate,
+            text=req.text,
+            output_path=str(output_path),
+            ref_file=req.ref_file,
+            ref_text=req.ref_text,
+            speed=req.speed,
+        )
+        _check_output_exists(output_path)
+    except Exception as exc:
+        raise _map_tts_runtime_error(exc)
+
+    return _audio_response(
+        model_id="f5-tts",
+        modality="text-to-speech",
+        audio_kind="tts",
+        output_id=output_id,
+        output_path=output_path,
+        parameters_used={
+            "text": req.text,
+            "ref_file": req.ref_file,
+            "ref_text": req.ref_text,
+            "speed": req.speed,
+            "format": format_normalized,
+        },
+        duration_ms=int((time.perf_counter() - start) * 1000),
+        audio_meta=audio_meta,
+    )
+
+
+@app.post("/generate/tts/e2-tts")
+def generate_e2_tts(req: E2TTSRequest):
+    format_normalized = req.format.lower()
+    output_id = f"e2tts_{uuid.uuid4().hex}.{format_normalized}"
+    output_path = AUDIO_OUTPUT_DIR / output_id
+    start = time.perf_counter()
+
+    try:
+        audio_meta = _run_with_timeout(
+            e2_tts_runner.generate,
+            text=req.text,
+            output_path=str(output_path),
+            ref_file=req.ref_file,
+            ref_text=req.ref_text,
+            speed=req.speed,
+        )
+        _check_output_exists(output_path)
+    except Exception as exc:
+        raise _map_tts_runtime_error(exc)
+
+    return _audio_response(
+        model_id="e2-tts",
+        modality="text-to-speech",
+        audio_kind="tts",
+        output_id=output_id,
+        output_path=output_path,
+        parameters_used={
+            "text": req.text,
+            "ref_file": req.ref_file,
+            "ref_text": req.ref_text,
+            "speed": req.speed,
+            "format": format_normalized,
+        },
+        duration_ms=int((time.perf_counter() - start) * 1000),
+        audio_meta=audio_meta,
+    )
+
+
+@app.post("/generate/tts/kitten-tts")
+def generate_kitten_tts(req: KittenTTSRequest):
+    format_normalized = req.format.lower()
+    output_id = f"kitten_{uuid.uuid4().hex}.{format_normalized}"
+    output_path = AUDIO_OUTPUT_DIR / output_id
+    start = time.perf_counter()
+
+    try:
+        audio_meta = _run_with_timeout(
+            kitten_tts_runner.generate,
+            text=req.text,
+            output_path=str(output_path),
+            voice=req.voice,
+            speed=req.speed,
+        )
+        _check_output_exists(output_path)
+    except Exception as exc:
+        raise _map_tts_runtime_error(exc)
+
+    return _audio_response(
+        model_id="kitten-tts",
         modality="text-to-speech",
         audio_kind="tts",
         output_id=output_id,

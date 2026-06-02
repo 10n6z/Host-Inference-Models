@@ -7,6 +7,23 @@ import numpy as np
 import soundfile as sf
 
 
+def _patch_transformers_compat():
+    """Patch transformers 5.x to provide APIs parler-tts expects from 4.46.x."""
+    import torch
+    import transformers.pytorch_utils as pu
+
+    if not hasattr(pu, "isin_mps_friendly"):
+        def isin_mps_friendly(elements, test_elements):
+            if hasattr(torch, "isin"):
+                return torch.isin(elements, test_elements)
+            return elements.unsqueeze(-1).eq(test_elements).any(-1)
+        pu.isin_mps_friendly = isin_mps_friendly
+
+    import transformers.cache_utils as cu
+    if not hasattr(cu, "SlidingWindowCache"):
+        cu.SlidingWindowCache = getattr(cu, "DynamicSlidingWindowLayer", cu.DynamicCache)
+
+
 class ParlerTTSRunner:
     """Runner for ylacombe/parler-tts-mini-jenny-30H."""
 
@@ -22,6 +39,7 @@ class ParlerTTSRunner:
         if self.model is not None:
             return
 
+        _patch_transformers_compat()
         from parler_tts import ParlerTTSForConditionalGeneration
         from transformers import AutoTokenizer
 
@@ -50,4 +68,11 @@ class ParlerTTSRunner:
         audio = generation.cpu().numpy().squeeze()
         sf.write(output_path, audio, self.sample_rate)
         duration = float(len(audio) / self.sample_rate)
-        return {"output_path": output_path, "sample_rate": self.sample_rate, "duration_seconds": duration}
+        return {
+            "output_path": output_path,
+            "sample_rate": self.sample_rate,
+            "duration_seconds": duration,
+            "parameters": {
+                "description": description,
+            },
+        }

@@ -26,13 +26,31 @@ class MeloTTSRunner:
         self.model = TTS(language="EN", device="cpu")
         self.sample_rate = self.model.hps.data.sampling_rate
 
-    def generate(self, *, text: str, output_path: str, speed: float = 1.0, **kwargs) -> dict:
+    def generate(
+        self,
+        *,
+        text: str,
+        output_path: str,
+        speed: float = 1.0,
+        speaker_id: int = 0,
+        **kwargs,
+    ) -> dict:
         self.load()
 
         speaker_ids = self.model.hps.data.spk2id
-        speaker_id = list(speaker_ids.values())[0]
-        self.model.tts_to_file(text, speaker_id, output_path, speed=speed)
+        all_ids = list(speaker_ids.values())
+        actual_speaker_id = all_ids[min(speaker_id, len(all_ids) - 1)]
+
+        self.model.tts_to_file(text, actual_speaker_id, output_path, speed=speed)
 
         info = sf.info(output_path)
         duration = float(info.frames / info.samplerate)
-        return {"output_path": output_path, "sample_rate": info.samplerate, "duration_seconds": duration}
+        return {
+            "output_path": output_path,
+            "sample_rate": info.samplerate,
+            "duration_seconds": duration,
+            "parameters": {
+                "speed": speed,
+                "speaker_id": speaker_id,
+            },
+        }

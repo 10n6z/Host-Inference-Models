@@ -23,18 +23,43 @@ class ESPnetVITSRunner:
 
         from espnet2.bin.tts_inference import Text2Speech
 
-        source = str(self.local_path) if self.local_path else self.model_id
         self.model = Text2Speech.from_pretrained(model_tag=self.model_id)
-        self.sample_rate = 22050
+        model_sr = getattr(self.model, "fs", None)
+        if model_sr:
+            self.sample_rate = int(model_sr)
 
-    def generate(self, *, text: str, output_path: str, **kwargs) -> dict:
+    def generate(
+        self,
+        *,
+        text: str,
+        output_path: str,
+        alpha: float = 1.0,
+        noise_scale: float = 0.667,
+        noise_scale_dur: float = 0.8,
+        **kwargs,
+    ) -> dict:
         self.load()
         import torch
 
+        decode_conf = {
+            "alpha": alpha,
+            "noise_scale": noise_scale,
+            "noise_scale_dur": noise_scale_dur,
+        }
+
         with torch.no_grad():
-            output = self.model(text)
+            output = self.model(text, decode_conf=decode_conf)
 
         audio = output["wav"].cpu().numpy()
         sf.write(output_path, audio, self.sample_rate)
         duration = float(len(audio) / self.sample_rate)
-        return {"output_path": output_path, "sample_rate": self.sample_rate, "duration_seconds": duration}
+        return {
+            "output_path": output_path,
+            "sample_rate": self.sample_rate,
+            "duration_seconds": duration,
+            "parameters": {
+                "alpha": alpha,
+                "noise_scale": noise_scale,
+                "noise_scale_dur": noise_scale_dur,
+            },
+        }

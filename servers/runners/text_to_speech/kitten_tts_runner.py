@@ -7,13 +7,23 @@ import numpy as np
 import soundfile as sf
 
 
+def _setup_espeak():
+    """Configure espeak-ng data path from bundled espeakng_loader."""
+    try:
+        from espeakng_loader import get_library_path, get_data_path
+        data_path = get_data_path()
+        parent = str(Path(data_path).parent) if "espeak-ng-data" in str(data_path) else str(data_path)
+        os.environ.setdefault("ESPEAK_DATA_PATH", parent)
+        os.environ.setdefault("PHONEMIZER_ESPEAK_LIBRARY", get_library_path())
+    except ImportError:
+        pass
+
+
 class KittenTTSRunner:
-    """Runner for KittenML/kitten-tts-nano-0.2."""
+    """Runner for KittenML/kitten-tts-nano-0.2 using kittentts package."""
 
     def __init__(self):
         self.model_id = "KittenML/kitten-tts-nano-0.2"
-        local_path = Path(os.getenv("HF_MODELS_ROOT", "models/hf")) / "KittenML--kitten-tts-nano-0.2"
-        self.local_path = local_path if local_path.is_dir() else None
         self.model = None
         self.sample_rate = 24000
 
@@ -21,24 +31,31 @@ class KittenTTSRunner:
         if self.model is not None:
             return
 
-        from transformers import AutoModelForCausalLM, AutoTokenizer
+        _setup_espeak()
+        import kittentts
 
-        source = self.model_id
-        self.tokenizer = AutoTokenizer.from_pretrained(source, trust_remote_code=True)
-        self.model = AutoModelForCausalLM.from_pretrained(source, trust_remote_code=True, torch_dtype="auto")
+        self.model = kittentts.KittenTTS()
 
-    def generate(self, *, text: str, output_path: str, **kwargs) -> dict:
+    def generate(
+        self,
+        *,
+        text: str,
+        output_path: str,
+        voice: str = "expr-voice-2-m",
+        speed: float = 1.0,
+        **kwargs,
+    ) -> dict:
         self.load()
-        import torch
 
-        inputs = self.tokenizer(text, return_tensors="pt")
-        with torch.no_grad():
-            outputs = self.model.generate(**inputs, max_new_tokens=2048)
-
-        audio_tokens = outputs[0][inputs["input_ids"].shape[1]:]
-        audio = audio_tokens.float().cpu().numpy()
-        audio = (audio - audio.mean()) / (audio.std() + 1e-8)
-
+        audio = self.model.generate(text, voice=voice, speed=speed)
         sf.write(output_path, audio, self.sample_rate)
         duration = float(len(audio) / self.sample_rate)
-        return {"output_path": output_path, "sample_rate": self.sample_rate, "duration_seconds": duration}
+        return {
+            "output_path": output_path,
+            "sample_rate": self.sample_rate,
+            "duration_seconds": duration,
+            "parameters": {
+                "voice": voice,
+                "speed": speed,
+            },
+        }
