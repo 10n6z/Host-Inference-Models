@@ -1,5 +1,11 @@
 # Audio generation environment (tts-models conda env)
-# Install: pip install -r requirements-audio.txt
+#
+# Install (two steps — MeloTTS pins transformers==4.27.4 in metadata but runs with 5.9):
+#   pip install -r requirements-audio.txt
+#   bash scripts/install-melotts.sh
+#
+# Or one-shot: bash scripts/install-audio-deps.sh
+#
 # Python 3.11 recommended. PyTorch wheels are platform-specific; adjust torch/torchaudio if needed.
 #
 # Covers the 17 smoke-tested TTS models plus optional server runners
@@ -70,9 +76,7 @@ onnx==1.21.0
 outetts==0.4.4
 llama_cpp_python==0.3.9
 
-# MeloTTS English
-melo==1.1.2
-melotts @ git+https://github.com/myshell-ai/MeloTTS.git@209145371cff8fc3bd60d7be902ea69cbdb7965a
+# MeloTTS English — install via scripts/install-melotts.sh (conflicts if listed here)
 
 # ESPnet VITS (LJSpeech)
 espnet==202511
