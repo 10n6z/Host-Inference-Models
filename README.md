@@ -61,6 +61,35 @@ hf download IndexTeam/IndexTTS-2 \
 
 CosyVoice2, Fish Speech, and IndexTTS-2 use custom runners and may need model-specific dependencies. Add dependencies one model at a time. If package versions conflict with working image/audio services, isolate them into separate environments or services instead of changing the shared environment blindly.
 
+## Docker Model Gateway
+
+Docker images contain service code and runtime dependencies only. Model weights, Hugging Face cache, Torch cache, and generated outputs live in mounted host folders:
+
+```bash
+mkdir -p model-cache outputs
+docker compose -f docker-compose.yml -f docker-compose.apple.yml build
+docker compose -f docker-compose.yml -f docker-compose.apple.yml up -d
+curl http://localhost:9000/health
+curl http://localhost:9000/models
+```
+
+Only `model-gateway` publishes port `9000`; model services stay on internal Docker service names.
+
+Storage inspection:
+
+```bash
+scripts/docker_storage_report.sh
+docker system df
+docker builder prune
+docker system prune
+```
+
+Aggressive cleanup removes unused images and may require rebuilding:
+
+```bash
+docker system prune -a
+```
+
 ## Start Image Server
 
 ```bash

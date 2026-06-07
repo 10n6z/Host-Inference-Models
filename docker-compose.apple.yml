@@ -1,0 +1,33 @@
+services:
+  audio-legacy:
+    environment:
+      DEVICE: cpu
+
+  audio-kokoro:
+    environment:
+      DEVICE: cpu
+
+  audio-melotts:
+    environment:
+      DEVICE: cpu
+
+  audio-outetts:
+    environment:
+      DEVICE: cpu
+
+  audio-espnet:
+    environment:
+      DEVICE: cpu
+
+  audio-bark:
+    environment:
+      DEVICE: cpu
+
+  audio-chatterbox:
+    environment:
+      DEVICE: cpu
+
+  audio-fish-speech:
+    environment:
+      DEVICE: cpu
+      FISH_SPEECH_DEVICE: cpu

@@ -1,0 +1,276 @@
+# Model routing registry. Update endpoint when moving models between family services.
+# Rollback: point endpoint back to audio-legacy legacy_path.
+
+services:
+  audio-legacy:
+    name: audio-legacy
+    family: audio-legacy
+    base_url: http://audio-legacy:8002
+  audio-kokoro:
+    name: audio-kokoro
+    family: audio-kokoro
+    base_url: http://audio-kokoro:8102
+  audio-melotts:
+    name: audio-melotts
+    family: audio-melotts
+    base_url: http://audio-melotts:8104
+  audio-outetts:
+    name: audio-outetts
+    family: audio-outetts
+    base_url: http://audio-outetts:8105
+  audio-espnet:
+    name: audio-espnet
+    family: audio-espnet
+    base_url: http://audio-espnet:8103
+  audio-bark:
+    name: audio-bark
+    family: audio-bark
+    base_url: http://audio-bark:8106
+  audio-chatterbox:
+    name: audio-chatterbox
+    family: audio-chatterbox
+    base_url: http://audio-chatterbox:8107
+  audio-fish-speech:
+    name: audio-fish-speech
+    family: audio-fish-speech
+    base_url: http://audio-fish-speech:8108
+
+models:
+  kokoro-82m:
+    display_name: Kokoro-82M
+    modality: text-to-speech
+    service: audio-kokoro
+    family: audio-kokoro
+    endpoint: http://audio-kokoro:8102/generate
+    fields:
+      text: { type: string, required: true, max_length: 12000 }
+      voice: { type: string, default: af_heart }
+      language: { type: string, default: en }
+      speed: { type: number, default: 1.0, min: 0.5, max: 2.0 }
+      format: { type: string, default: wav, enum: [wav] }
+      sample_rate: { type: integer, default: 24000, min: 24000, max: 24000 }
+      lang_code: { type: string, required: false, max_length: 1 }
+
+  kokoro-82m-onnx:
+    display_name: Kokoro-82M ONNX
+    modality: text-to-speech
+    service: audio-kokoro
+    family: audio-kokoro
+    endpoint: http://audio-kokoro:8102/generate
+    fields:
+      text: { type: string, required: true, max_length: 12000 }
+      voice: { type: string, default: af_heart }
+      speed: { type: number, default: 1.0, min: 0.1, max: 5.0 }
+      format: { type: string, default: wav, enum: [wav] }
+
+  melotts:
+    display_name: MeloTTS English
+    modality: text-to-speech
+    service: audio-melotts
+    family: audio-melotts
+    endpoint: http://audio-melotts:8104/generate
+    fields:
+      text: { type: string, required: true, max_length: 12000 }
+      speed: { type: number, default: 1.0, min: 0.5, max: 3.0 }
+      speaker_id: { type: integer, default: 0, min: 0, max: 10 }
+      format: { type: string, default: wav, enum: [wav] }
+
+  outetts:
+    display_name: OuteTTS (0.2-500M / 0.3-1B)
+    modality: text-to-speech
+    service: audio-outetts
+    family: audio-outetts
+    endpoint: http://audio-outetts:8105/generate
+    fields:
+      text: { type: string, required: true, max_length: 12000 }
+      variant: { type: string, default: "0.2-500M", enum: ["0.2-500M", "0.3-1B"] }
+      temperature: { type: number, default: 0.1, min: 0.0, max: 2.0 }
+      repetition_penalty: { type: number, default: 1.1, min: 1.0, max: 3.0 }
+      max_length: { type: integer, default: 4096, min: 256, max: 8192 }
+      format: { type: string, default: wav, enum: [wav] }
+
+  fish-speech-v1.5:
+    display_name: Fish Speech v1.5
+    modality: text-to-speech
+    service: audio-fish-speech
+    family: audio-fish-speech
+    endpoint: http://audio-fish-speech:8108/generate
+    fields:
+      text: { type: string, required: true, max_length: 12000 }
+      seed: { type: integer, required: false, min: 0, max: 2147483647 }
+      reference_audio: { type: string, required: false, max_length: 500 }
+      reference_text: { type: string, required: false, max_length: 12000 }
+      speed: { type: number, default: 1.0, min: 0.5, max: 2.0 }
+      format: { type: string, default: wav, enum: [wav] }
+
+  cosyvoice2-0.5b:
+    display_name: CosyVoice2-0.5B
+    modality: text-to-speech
+    service: audio-legacy
+    family: audio-legacy
+    endpoint: http://audio-legacy:8002/generate/tts/cosyvoice2
+    fields:
+      text: { type: string, required: true, max_length: 12000 }
+      seed: { type: integer, required: false, min: 0, max: 2147483647 }
+      reference_audio: { type: string, required: false, max_length: 500 }
+      reference_text: { type: string, required: false, max_length: 12000 }
+      speed: { type: number, default: 1.0, min: 0.5, max: 2.0 }
+      format: { type: string, default: wav, enum: [wav] }
+      speaker: { type: string, default: default }
+      instruction: { type: string, required: false, max_length: 500 }
+      stream: { type: boolean, default: false }
+
+  indextts-2:
+    display_name: IndexTTS-2
+    modality: text-to-speech
+    service: audio-legacy
+    family: audio-legacy
+    endpoint: http://audio-legacy:8002/generate/tts/indextts2
+    fields:
+      text: { type: string, required: true, max_length: 12000 }
+      seed: { type: integer, required: false, min: 0, max: 2147483647 }
+      reference_audio: { type: string, required: false, max_length: 500 }
+      reference_text: { type: string, required: false, max_length: 12000 }
+      speed: { type: number, default: 1.0, min: 0.5, max: 2.0 }
+      format: { type: string, default: wav, enum: [wav] }
+      speaker: { type: string, default: default }
+      emotion: { type: string, required: false, max_length: 100 }
+      duration_control: { type: number, required: false, min: 0.5, max: 120.0 }
+
+  stable-audio-open-1.0:
+    display_name: Stable Audio Open 1.0
+    modality: text-to-audio
+    service: audio-legacy
+    family: audio-legacy
+    endpoint: http://audio-legacy:8002/generate/audio/stable-audio
+    fields:
+      prompt: { type: string, required: true, max_length: 4000 }
+      negative_prompt: { type: string, required: false, max_length: 4000 }
+      duration_seconds: { type: number, default: 10.0, min: 1.0, max: 47.0 }
+      steps: { type: integer, default: 100, min: 1, max: 250 }
+      guidance_scale: { type: number, default: 7.0, min: 0.0, max: 25.0 }
+      seed: { type: integer, required: false, min: 0, max: 2147483647 }
+      format: { type: string, default: wav, enum: [wav] }
+
+  mms-tts:
+    display_name: MMS-TTS (eng/deu/fra/spa)
+    modality: text-to-speech
+    service: audio-legacy
+    family: audio-legacy
+    endpoint: http://audio-legacy:8002/generate/tts/mms-tts
+    fields:
+      text: { type: string, required: true, max_length: 12000 }
+      language: { type: string, default: eng, enum: [eng, deu, fra, spa] }
+      speaking_rate: { type: number, default: 1.0, min: 0.1, max: 5.0 }
+      noise_scale: { type: number, default: 0.667, min: 0.0, max: 2.0 }
+      noise_scale_duration: { type: number, default: 0.8, min: 0.0, max: 2.0 }
+      format: { type: string, default: wav, enum: [wav] }
+
+  speecht5-tts:
+    display_name: SpeechT5 TTS
+    modality: text-to-speech
+    service: audio-legacy
+    family: audio-legacy
+    endpoint: http://audio-legacy:8002/generate/tts/speecht5
+    fields:
+      text: { type: string, required: true, max_length: 12000 }
+      speaker_index: { type: integer, default: 7306, min: 0, max: 7930 }
+      threshold: { type: number, default: 0.5, min: 0.0, max: 1.0 }
+      minlenratio: { type: number, default: 0.0, min: 0.0, max: 10.0 }
+      maxlenratio: { type: number, default: 20.0, min: 1.0, max: 50.0 }
+      format: { type: string, default: wav, enum: [wav] }
+
+  bark-small:
+    display_name: Bark Small
+    modality: text-to-speech
+    service: audio-bark
+    family: audio-bark
+    endpoint: http://audio-bark:8106/generate
+    fields:
+      text: { type: string, required: true, max_length: 12000 }
+      voice_preset: { type: string, default: v2/en_speaker_6 }
+      do_sample: { type: boolean, default: true }
+      temperature: { type: number, default: 1.0, min: 0.0, max: 2.0 }
+      semantic_temperature: { type: number, default: 1.0, min: 0.0, max: 2.0 }
+      coarse_temperature: { type: number, default: 1.0, min: 0.0, max: 2.0 }
+      fine_temperature: { type: number, default: 1.0, min: 0.0, max: 2.0 }
+      semantic_max_new_tokens: { type: integer, default: 768, min: 1, max: 2048 }
+      coarse_max_new_tokens: { type: integer, default: 1536, min: 1, max: 4096 }
+      fine_max_new_tokens: { type: integer, default: 1536, min: 1, max: 4096 }
+      format: { type: string, default: wav, enum: [wav] }
+
+  bark-full:
+    display_name: Bark Full
+    modality: text-to-speech
+    service: audio-bark
+    family: audio-bark
+    endpoint: http://audio-bark:8106/generate
+    fields:
+      text: { type: string, required: true, max_length: 12000 }
+      voice_preset: { type: string, default: v2/en_speaker_6 }
+      do_sample: { type: boolean, default: true }
+      temperature: { type: number, default: 1.0, min: 0.0, max: 2.0 }
+      format: { type: string, default: wav, enum: [wav] }
+
+  espnet-vits:
+    display_name: ESPnet VITS (LJSpeech)
+    modality: text-to-speech
+    service: audio-espnet
+    family: audio-espnet
+    endpoint: http://audio-espnet:8103/generate
+    fields:
+      text: { type: string, required: true, max_length: 12000 }
+      alpha: { type: number, default: 1.0, min: 0.1, max: 3.0 }
+      noise_scale: { type: number, default: 0.667, min: 0.0, max: 2.0 }
+      noise_scale_dur: { type: number, default: 0.8, min: 0.0, max: 2.0 }
+      format: { type: string, default: wav, enum: [wav] }
+
+  chatterbox:
+    display_name: Chatterbox TTS
+    modality: text-to-speech
+    service: audio-chatterbox
+    family: audio-chatterbox
+    endpoint: http://audio-chatterbox:8107/generate
+    fields:
+      text: { type: string, required: true, max_length: 12000 }
+      exaggeration: { type: number, default: 0.5, min: 0.0, max: 2.0 }
+      cfg_weight: { type: number, default: 0.5, min: 0.0, max: 2.0 }
+      format: { type: string, default: wav, enum: [wav] }
+
+  f5-tts:
+    display_name: F5-TTS
+    modality: text-to-speech
+    service: audio-legacy
+    family: audio-legacy
+    endpoint: http://audio-legacy:8002/generate/tts/f5-tts
+    fields:
+      text: { type: string, required: true, max_length: 12000 }
+      ref_file: { type: string, required: false, max_length: 500 }
+      ref_text: { type: string, required: false, max_length: 12000 }
+      speed: { type: number, default: 1.0, min: 0.5, max: 3.0 }
+      format: { type: string, default: wav, enum: [wav] }
+
+  e2-tts:
+    display_name: E2-TTS
+    modality: text-to-speech
+    service: audio-legacy
+    family: audio-legacy
+    endpoint: http://audio-legacy:8002/generate/tts/e2-tts
+    fields:
+      text: { type: string, required: true, max_length: 12000 }
+      ref_file: { type: string, required: false, max_length: 500 }
+      ref_text: { type: string, required: false, max_length: 12000 }
+      speed: { type: number, default: 1.0, min: 0.5, max: 3.0 }
+      format: { type: string, default: wav, enum: [wav] }
+
+  kitten-tts:
+    display_name: KittenTTS Nano
+    modality: text-to-speech
+    service: audio-legacy
+    family: audio-legacy
+    endpoint: http://audio-legacy:8002/generate/tts/kitten-tts
+    fields:
+      text: { type: string, required: true, max_length: 12000 }
+      voice: { type: string, default: expr-voice-2-m }
+      speed: { type: number, default: 1.0, min: 0.5, max: 3.0 }
+      format: { type: string, default: wav, enum: [wav] }

@@ -1,0 +1,18 @@
+fastapi==0.136.3
+uvicorn==0.48.0
+python-dotenv==1.2.2
+pydantic==2.9.2
+python-multipart==0.0.30
+
+numpy>=2.0.0,<2.7
+soundfile==0.13.1
+torch==2.6.0
+torchaudio==2.6.0
+
+# ESPnet VITS (LJSpeech) — isolated NumPy 2.x stack
+espnet==202511
+espnet-model-zoo==0.1.7
+espnet-tts-frontend==0.0.3
+kaldiio==2.18.1
+typeguard==4.5.2
+requests==2.34.2

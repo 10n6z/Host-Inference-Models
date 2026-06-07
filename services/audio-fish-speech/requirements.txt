@@ -1,0 +1,14 @@
+fastapi==0.136.3
+uvicorn==0.48.0
+python-dotenv==1.2.2
+pydantic==2.9.2
+python-multipart==0.0.30
+
+numpy==1.26.4
+soundfile==0.13.1
+torch==2.6.0
+torchaudio==2.6.0
+
+# fish-speech pins einx==0.2.2 (conflicts with f5-tts/x-transformers in legacy)
+fish-speech==0.1.0
+snac==1.2.1

@@ -1,0 +1,151 @@
+x-audio-environment: &audio-environment
+  OUTPUT_ROOT: /outputs
+  HF_HOME: /models/huggingface
+  HF_HUB_CACHE: /models/huggingface/hub
+  TRANSFORMERS_CACHE: /models/huggingface
+  TORCH_HOME: /models/torch
+  XDG_CACHE_HOME: /models/cache
+  MPLCONFIGDIR: /models/cache/matplotlib
+  HF_MODELS_ROOT: /models/hf
+  DEVICE: cpu
+  INFERENCE_TIMEOUT_SECONDS: "300"
+
+x-audio-volumes: &audio-volumes
+  - ./model-cache:/models
+  - ./outputs:/outputs
+
+services:
+  model-gateway:
+    build:
+      context: .
+      dockerfile: model-gateway/Dockerfile
+    ports:
+      - "9000:9000"
+    environment:
+      GATEWAY_PUBLIC_BASE_URL: http://localhost:9000
+      GATEWAY_TIMEOUT_SECONDS: "300"
+    depends_on:
+      - audio-legacy
+      - audio-kokoro
+      - audio-melotts
+      - audio-outetts
+      - audio-espnet
+      - audio-bark
+      - audio-chatterbox
+      - audio-fish-speech
+    networks:
+      - model-server
+
+  audio-legacy:
+    build:
+      context: .
+      dockerfile: services/audio-legacy/Dockerfile
+    expose:
+      - "8002"
+    environment:
+      <<: *audio-environment
+      AUDIO_PUBLIC_BASE_URL: http://audio-legacy:8002
+      COQUI_TOS_AGREED: "1"
+      TTS_HOME: /models/tts
+    volumes: *audio-volumes
+    networks:
+      - model-server
+
+  audio-kokoro:
+    build:
+      context: .
+      dockerfile: services/audio-kokoro/Dockerfile
+    expose:
+      - "8102"
+    environment:
+      <<: *audio-environment
+      AUDIO_PUBLIC_BASE_URL: http://audio-kokoro:8102
+    volumes: *audio-volumes
+    networks:
+      - model-server
+
+  audio-melotts:
+    build:
+      context: .
+      dockerfile: services/audio-melotts/Dockerfile
+    expose:
+      - "8104"
+    environment:
+      <<: *audio-environment
+      AUDIO_PUBLIC_BASE_URL: http://audio-melotts:8104
+      TTS_HOME: /models/tts
+    volumes: *audio-volumes
+    networks:
+      - model-server
+
+  audio-outetts:
+    build:
+      context: .
+      dockerfile: services/audio-outetts/Dockerfile
+    expose:
+      - "8105"
+    environment:
+      <<: *audio-environment
+      AUDIO_PUBLIC_BASE_URL: http://audio-outetts:8105
+    volumes: *audio-volumes
+    networks:
+      - model-server
+
+  audio-espnet:
+    build:
+      context: .
+      dockerfile: services/audio-espnet/Dockerfile
+    expose:
+      - "8103"
+    environment:
+      <<: *audio-environment
+      AUDIO_PUBLIC_BASE_URL: http://audio-espnet:8103
+      ESPNET_CACHE: /models/espnet
+    volumes: *audio-volumes
+    networks:
+      - model-server
+
+  audio-bark:
+    build:
+      context: .
+      dockerfile: services/audio-bark/Dockerfile
+    expose:
+      - "8106"
+    environment:
+      <<: *audio-environment
+      AUDIO_PUBLIC_BASE_URL: http://audio-bark:8106
+    volumes: *audio-volumes
+    networks:
+      - model-server
+
+  audio-chatterbox:
+    build:
+      context: .
+      dockerfile: services/audio-chatterbox/Dockerfile
+    expose:
+      - "8107"
+    environment:
+      <<: *audio-environment
+      AUDIO_PUBLIC_BASE_URL: http://audio-chatterbox:8107
+    volumes: *audio-volumes
+    networks:
+      - model-server
+
+  audio-fish-speech:
+    build:
+      context: .
+      dockerfile: services/audio-fish-speech/Dockerfile
+    expose:
+      - "8108"
+    environment:
+      <<: *audio-environment
+      AUDIO_PUBLIC_BASE_URL: http://audio-fish-speech:8108
+      FISH_SPEECH_DEVICE: cpu
+      FISH_SPEECH_MODEL_PATH: /models/fish-speech/fish-speech-v1.5
+    volumes: *audio-volumes
+    networks:
+      - model-server
+
+networks:
+  model-server:
+    driver: bridge

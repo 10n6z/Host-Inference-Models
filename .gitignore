@@ -16,7 +16,10 @@ env/
 .ipynb_checkpoints/
 
 # Model weights and caches
+model-cache/
 models/
+checkpoints/
+.huggingface/
 *.safetensors
 *.ckpt
 *.bin
@@ -43,4 +46,3 @@ logs/
 .DS_Store
 .vscode/
 .idea/
-
