@@ -1,48 +1,48 @@
 services:
   audio-legacy:
-    gpus: all
+    runtime: nvidia
     environment:
       DEVICE: cuda
       NVIDIA_VISIBLE_DEVICES: all
 
   audio-kokoro:
-    gpus: all
+    runtime: nvidia
     environment:
       DEVICE: cuda
       NVIDIA_VISIBLE_DEVICES: all
 
   audio-melotts:
-    gpus: all
+    runtime: nvidia
     environment:
       DEVICE: cuda
       NVIDIA_VISIBLE_DEVICES: all
 
   audio-outetts:
-    gpus: all
+    runtime: nvidia
     environment:
       DEVICE: cuda
       NVIDIA_VISIBLE_DEVICES: all
 
   audio-espnet:
-    gpus: all
+    runtime: nvidia
     environment:
       DEVICE: cuda
       NVIDIA_VISIBLE_DEVICES: all
 
   audio-bark:
-    gpus: all
+    runtime: nvidia
     environment:
       DEVICE: cuda
       NVIDIA_VISIBLE_DEVICES: all
 
   audio-chatterbox:
-    gpus: all
+    runtime: nvidia
     environment:
       DEVICE: cuda
       NVIDIA_VISIBLE_DEVICES: all
 
   audio-fish-speech:
-    gpus: all
+    runtime: nvidia
     environment:
       DEVICE: cuda
       FISH_SPEECH_DEVICE: cuda
