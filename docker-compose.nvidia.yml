@@ -1,10 +1,4 @@
 services:
-  audio-legacy:
-    runtime: nvidia
-    environment:
-      DEVICE: cuda
-      NVIDIA_VISIBLE_DEVICES: all
-
   audio-kokoro:
     runtime: nvidia
     environment:
@@ -46,4 +40,16 @@ services:
     environment:
       DEVICE: cuda
       FISH_SPEECH_DEVICE: cuda
+      NVIDIA_VISIBLE_DEVICES: all
+
+  audio-xtts:
+    runtime: nvidia
+    environment:
+      DEVICE: cuda
+      NVIDIA_VISIBLE_DEVICES: all
+
+  audio-csm:
+    runtime: nvidia
+    environment:
+      DEVICE: cuda
       NVIDIA_VISIBLE_DEVICES: all
