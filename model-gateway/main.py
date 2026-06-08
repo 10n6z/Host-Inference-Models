@@ -101,6 +101,48 @@ def _translate_upstream_error(
     return JSONResponse(status_code=status_code, content=payload)
 
 
+def _request_id_from(raw_body: dict[str, Any], request: Request) -> str:
+    header_request_id = request.headers.get("X-Request-ID")
+    if header_request_id:
+        return header_request_id
+    body_request_id = raw_body.get("request_id")
+    if body_request_id is not None:
+        body_request_id = str(body_request_id).strip()
+        if body_request_id:
+            return body_request_id
+    return uuid.uuid4().hex
+
+
+def _forward_payload_from(raw_body: dict[str, Any], *, model_id: str, include_model: bool) -> dict[str, Any]:
+    nested_input = raw_body.get("input")
+    nested_parameters = raw_body.get("parameters")
+    uses_nested_contract = "input" in raw_body or "parameters" in raw_body
+
+    if not uses_nested_contract:
+        forward_payload = {key: value for key, value in raw_body.items() if key not in {"model", "request_id"}}
+    else:
+        if nested_input is None:
+            nested_input = {}
+        if nested_parameters is None:
+            nested_parameters = {}
+        if not isinstance(nested_input, dict):
+            raise ValueError("input: Must be an object")
+        if not isinstance(nested_parameters, dict):
+            raise ValueError("parameters: Must be an object")
+
+        forward_payload = {
+            key: value
+            for key, value in raw_body.items()
+            if key not in {"model", "input", "parameters", "request_id"}
+        }
+        forward_payload.update(nested_input)
+        forward_payload.update(nested_parameters)
+
+    if include_model:
+        forward_payload["model"] = model_id
+    return forward_payload
+
+
 @app.exception_handler(RequestValidationError)
 async def validation_error_handler(_: Request, exc: RequestValidationError):
     request_id = uuid.uuid4().hex
@@ -142,8 +184,8 @@ def models():
 
 @app.post("/generate")
 async def generate(request: Request):
-    request_id = request.headers.get("X-Request-ID") or uuid.uuid4().hex
     raw_body = await request.json()
+    request_id = _request_id_from(raw_body if isinstance(raw_body, dict) else {}, request)
     if not isinstance(raw_body, dict):
         payload = build_failed_response(
             model="unknown",
@@ -181,15 +223,26 @@ async def generate(request: Request):
         )
         return JSONResponse(status_code=404, content=payload)
 
-    forward_payload = {key: value for key, value in raw_body.items() if key != "model"}
-
     target_endpoint = registry_entry["endpoint"]
     family = registry_entry.get("family", registry_entry.get("service", "unknown"))
     service_name = registry_entry.get("service", "unknown")
 
-    # Family services accept unified /generate with model id.
-    if target_endpoint.endswith("/generate"):
-        forward_payload["model"] = model_id
+    try:
+        forward_payload = _forward_payload_from(
+            raw_body,
+            model_id=model_id,
+            include_model=target_endpoint.endswith("/generate"),
+        )
+    except ValueError as exc:
+        payload = build_failed_response(
+            model=model_id,
+            service="model-gateway",
+            family="model-gateway",
+            error_type="ValidationError",
+            message=str(exc),
+            request_id=request_id,
+        )
+        return JSONResponse(status_code=422, content=payload)
 
     started = time.perf_counter()
     logger.info(
@@ -201,8 +254,12 @@ async def generate(request: Request):
     )
 
     try:
-        async with httpx.AsyncClient(timeout=GATEWAY_TIMEOUT_SECONDS) as client:
-            upstream = await client.post(target_endpoint, json=forward_payload)
+        async with httpx.AsyncClient(timeout=GATEWAY_TIMEOUT_SECONDS, trust_env=False) as client:
+            upstream = await client.post(
+                target_endpoint,
+                json=forward_payload,
+                headers={"X-Request-ID": request_id},
+            )
     except httpx.TimeoutException:
         payload = build_failed_response(
             model=model_id,

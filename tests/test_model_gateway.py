@@ -154,6 +154,43 @@ def test_gateway_routes_legacy_model_without_model_field(monkeypatch, tmp_path):
     assert called_json["seed"] == 42
 
 
+def test_gateway_flattens_documented_nested_contract(monkeypatch, tmp_path):
+    gateway = _import_gateway_module(monkeypatch, tmp_path)
+    client = TestClient(gateway.app)
+
+    mock_response = AsyncMock()
+    mock_response.status_code = 200
+    mock_response.json = lambda: {"success": True, "model_id": "kokoro-82m"}
+
+    with patch("main.httpx.AsyncClient") as mock_client_cls:
+        mock_client = AsyncMock()
+        mock_client.__aenter__.return_value = mock_client
+        mock_client.__aexit__.return_value = None
+        mock_client.post.return_value = mock_response
+        mock_client_cls.return_value = mock_client
+
+        response = client.post(
+            "/generate",
+            json={
+                "model": "kokoro-82m",
+                "input": {"text": "hello"},
+                "parameters": {"voice": "af_heart", "speed": 1.1},
+                "request_id": "nested-smoke",
+            },
+        )
+
+    assert response.status_code == 200
+    called_json = mock_client.post.await_args.kwargs["json"]
+    called_headers = mock_client.post.await_args.kwargs["headers"]
+    assert called_json == {
+        "text": "hello",
+        "voice": "af_heart",
+        "speed": 1.1,
+        "model": "kokoro-82m",
+    }
+    assert called_headers["X-Request-ID"] == "nested-smoke"
+
+
 def test_kokoro_service_generate_with_mock_runner(tmp_path, monkeypatch):
     module = _import_kokoro_service(tmp_path, monkeypatch)
     captured = {}

@@ -29,14 +29,24 @@ class OuteTTSRunner:
 
         import outetts
 
-        version = outetts.InterfaceVersion.V2
-        config = outetts.ModelConfig(
+        if hasattr(outetts, "InterfaceVersion"):
+            version = outetts.InterfaceVersion.V2
+            config = outetts.ModelConfig(
+                model_path=self.model_id,
+                tokenizer_path=self.model_id,
+                interface_version=version,
+                backend=outetts.Backend.HF,
+            )
+            self.interface = outetts.Interface(config)
+            return
+
+        config = outetts.HFModelConfig_v1(
             model_path=self.model_id,
             tokenizer_path=self.model_id,
-            interface_version=version,
-            backend=outetts.Backend.HF,
+            device="cpu",
+            max_seq_length=4096,
         )
-        self.interface = outetts.Interface(config)
+        self.interface = outetts.InterfaceHF("0.2", config)
 
     def generate(
         self,
@@ -51,16 +61,24 @@ class OuteTTSRunner:
         self.load()
         import outetts
 
-        sampler = outetts.SamplerConfig(
-            temperature=temperature,
-            repetition_penalty=repetition_penalty,
-        )
-        gen_config = outetts.GenerationConfig(
-            text=text,
-            sampler_config=sampler,
-            max_length=max_length,
-        )
-        output = self.interface.generate(gen_config)
+        if hasattr(outetts, "GenerationConfig"):
+            sampler = outetts.SamplerConfig(
+                temperature=temperature,
+                repetition_penalty=repetition_penalty,
+            )
+            gen_config = outetts.GenerationConfig(
+                text=text,
+                sampler_config=sampler,
+                max_length=max_length,
+            )
+            output = self.interface.generate(gen_config)
+        else:
+            output = self.interface.generate(
+                text=text,
+                temperature=temperature,
+                repetition_penalty=repetition_penalty,
+                max_length=max_length,
+            )
         output.save(output_path)
 
         info = sf.info(output_path)

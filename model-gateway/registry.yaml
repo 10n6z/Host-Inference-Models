@@ -34,7 +34,14 @@ services:
     name: audio-fish-speech
     family: audio-fish-speech
     base_url: http://audio-fish-speech:8108
-
+  audio-xtts:
+    name: audio-xtts
+    family: audio-xtts
+    base_url: http://audio-xtts:8109
+  audio-csm:
+    name: audio-csm
+    family: audio-csm
+    base_url: http://audio-csm:8110
 models:
   kokoro-82m:
     display_name: Kokoro-82M
@@ -273,4 +280,28 @@ models:
       text: { type: string, required: true, max_length: 12000 }
       voice: { type: string, default: expr-voice-2-m }
       speed: { type: number, default: 1.0, min: 0.5, max: 3.0 }
+      format: { type: string, default: wav, enum: [wav] }
+
+  xtts-v2:
+    display_name: XTTS v2
+    modality: text-to-speech
+    service: audio-xtts
+    family: audio-xtts
+    endpoint: http://audio-xtts:8109/generate
+    fields:
+      text: { type: string, required: true, max_length: 12000 }
+      language: { type: string, default: en }
+      speaker_wav: { type: string, required: false, max_length: 500 }
+      format: { type: string, default: wav, enum: [wav] }
+
+  csm-1b:
+    display_name: Sesame CSM-1B
+    modality: text-to-speech
+    service: audio-csm
+    family: audio-csm
+    endpoint: http://audio-csm:8110/generate
+    fields:
+      text: { type: string, required: true, max_length: 12000 }
+      speaker: { type: integer, default: 0, min: 0, max: 10 }
+      max_audio_length_ms: { type: integer, default: 10000, min: 1000, max: 30000 }
       format: { type: string, default: wav, enum: [wav] }

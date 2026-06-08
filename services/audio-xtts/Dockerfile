@@ -10,7 +10,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 RUN python -m pip install --upgrade pip
 
-COPY services/audio-melotts/requirements.txt /build/requirements.txt
+COPY services/audio-xtts/requirements.txt /build/requirements.txt
 RUN pip install --prefix=/install --no-cache-dir -r /build/requirements.txt
 
 FROM python:3.11-slim
@@ -27,20 +27,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 COPY --from=builder /install /usr/local
 
-RUN python -m unidic download
-RUN python -m nltk.downloader -d /usr/local/share/nltk_data \
-    averaged_perceptron_tagger \
-    averaged_perceptron_tagger_eng \
-    cmudict
-
 COPY servers/ /app/servers/
 COPY services/common/ /app/services/common/
-COPY services/audio-melotts/main.py /app/services/audio-melotts/main.py
+COPY services/audio-xtts/main.py /app/services/audio-xtts/main.py
 
 ENV PYTHONPATH=/app/services:/app/servers
-ENV AUDIO_PUBLIC_BASE_URL=http://audio-melotts:8104
+ENV AUDIO_PUBLIC_BASE_URL=http://audio-xtts:8109
+ENV DEVICE=cpu
+ENV COQUI_TOS_AGREED=1
 
-WORKDIR /app/services/audio-melotts
-EXPOSE 8104
+WORKDIR /app/services/audio-xtts
+EXPOSE 8109
 
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8104"]
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8109"]

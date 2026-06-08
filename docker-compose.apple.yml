@@ -1,8 +1,4 @@
 services:
-  audio-legacy:
-    environment:
-      DEVICE: cpu
-
   audio-kokoro:
     environment:
       DEVICE: cpu
@@ -31,3 +27,12 @@ services:
     environment:
       DEVICE: cpu
       FISH_SPEECH_DEVICE: cpu
+
+  audio-xtts:
+    environment:
+      DEVICE: cpu
+
+  audio-csm:
+    environment:
+      DEVICE: cpu
+

@@ -12,6 +12,8 @@ x-audio-environment: &audio-environment
 
 x-audio-volumes: &audio-volumes
   - ./model-cache:/models
+  - ./models/hf:/models/hf
+  - ./models/hf-cache:/models/huggingface
   - ./outputs:/outputs
 
 services:
@@ -25,7 +27,6 @@ services:
       GATEWAY_PUBLIC_BASE_URL: http://localhost:9000
       GATEWAY_TIMEOUT_SECONDS: "300"
     depends_on:
-      - audio-legacy
       - audio-kokoro
       - audio-melotts
       - audio-outetts
@@ -33,21 +34,8 @@ services:
       - audio-bark
       - audio-chatterbox
       - audio-fish-speech
-    networks:
-      - model-server
-
-  audio-legacy:
-    build:
-      context: .
-      dockerfile: services/audio-legacy/Dockerfile
-    expose:
-      - "8002"
-    environment:
-      <<: *audio-environment
-      AUDIO_PUBLIC_BASE_URL: http://audio-legacy:8002
-      COQUI_TOS_AGREED: "1"
-      TTS_HOME: /models/tts
-    volumes: *audio-volumes
+      - audio-xtts
+      - audio-csm
     networks:
       - model-server
 
@@ -142,6 +130,33 @@ services:
       AUDIO_PUBLIC_BASE_URL: http://audio-fish-speech:8108
       FISH_SPEECH_DEVICE: cpu
       FISH_SPEECH_MODEL_PATH: /models/fish-speech/fish-speech-v1.5
+    volumes: *audio-volumes
+    networks:
+      - model-server
+
+  audio-xtts:
+    build:
+      context: .
+      dockerfile: services/audio-xtts/Dockerfile
+    expose:
+      - "8109"
+    environment:
+      <<: *audio-environment
+      AUDIO_PUBLIC_BASE_URL: http://audio-xtts:8109
+      COQUI_TOS_AGREED: "1"
+    volumes: *audio-volumes
+    networks:
+      - model-server
+
+  audio-csm:
+    build:
+      context: .
+      dockerfile: services/audio-csm/Dockerfile
+    expose:
+      - "8110"
+    environment:
+      <<: *audio-environment
+      AUDIO_PUBLIC_BASE_URL: http://audio-csm:8110
     volumes: *audio-volumes
     networks:
       - model-server

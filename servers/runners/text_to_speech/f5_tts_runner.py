@@ -52,7 +52,7 @@ class F5TTSRunner:
         self.load()
 
         actual_ref = ref_file if ref_file and os.path.exists(ref_file) else self._ensure_reference_audio()
-        actual_ref_text = ref_text if ref_text else " "
+        actual_ref_text = ref_text if ref_text else "silence"
 
         audio, sr, _ = self.model.infer(
             ref_file=actual_ref,

@@ -27,6 +27,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 COPY --from=builder /install /usr/local
 
+RUN python -m nltk.downloader -d /usr/local/share/nltk_data \
+    averaged_perceptron_tagger \
+    averaged_perceptron_tagger_eng \
+    cmudict
+
 COPY servers/ /app/servers/
 COPY services/common/ /app/services/common/
 COPY services/audio-espnet/main.py /app/services/audio-espnet/main.py
