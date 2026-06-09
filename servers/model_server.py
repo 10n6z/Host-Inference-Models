@@ -19,6 +19,9 @@ from runners.text_to_image.auraflow import AuraFlowRunner
 from runners.text_to_image.flux_schnell import FluxSchnellRunner
 from runners.text_to_image.openflux import OpenFluxRunner
 from runners.text_to_image.sd35_medium import SD35MediumRunner
+from runners.text_to_video.cogvideox_runner import CogVideoXRunner
+from runners.text_to_video.ltx_video_runner import LTXVideoRunner
+from runners.text_to_video.wan_t2v_runner import WanT2VRunner
 from runners.text_to_audio.stable_audio_open_runner import StableAudioOpenRunner
 from runners.text_to_speech.cosyvoice2_runner import CosyVoice2Runner
 from runners.text_to_speech.fish_speech_runner import FishSpeechRunner
@@ -37,11 +40,13 @@ INFERENCE_TIMEOUT_SECONDS = float(os.getenv("INFERENCE_TIMEOUT_SECONDS", "300"))
 
 IMAGE_OUTPUT_DIR = OUTPUT_ROOT / "images"
 AUDIO_OUTPUT_DIR = OUTPUT_ROOT / "audio"
+VIDEO_OUTPUT_DIR = OUTPUT_ROOT / "videos"
 
 HF_HOME.mkdir(parents=True, exist_ok=True)
 HF_HUB_CACHE.mkdir(parents=True, exist_ok=True)
 IMAGE_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 AUDIO_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+VIDEO_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 os.environ["HF_HOME"] = str(HF_HOME)
 os.environ["HF_HUB_CACHE"] = str(HF_HUB_CACHE)
@@ -61,6 +66,10 @@ STABLE_AUDIO_MIN_DURATION_SECONDS = 1
 STABLE_AUDIO_MAX_DURATION_SECONDS = 47
 STABLE_AUDIO_DEFAULT_SAMPLE_RATE = 44100
 WAV_ONLY_PATTERN = "^(wav)$"
+VIDEO_MIN_SIZE = 256
+VIDEO_MAX_SIZE = 1024
+VIDEO_SIZE_STEP = 8
+VIDEO_MAX_FRAMES = 257
 
 FISH_SPEECH_LANGUAGES = sorted({"en", "zh", "ja", "de", "fr", "es", "ko", "ar", "ru", "nl", "it", "pl", "pt"})
 COSYVOICE2_LANGUAGES = sorted({"zh", "en", "ja", "ko", "de", "es", "fr", "it", "ru"})
@@ -93,6 +102,9 @@ fish_speech_runner = FishSpeechRunner()
 cosyvoice2_runner = CosyVoice2Runner()
 indextts2_runner = IndexTTS2Runner()
 stable_audio_open_runner = StableAudioOpenRunner()
+wan_t2v_runner = WanT2VRunner()
+cogvideox_runner = CogVideoXRunner()
+ltx_video_runner = LTXVideoRunner()
 
 
 class APIError(Exception):
@@ -223,6 +235,47 @@ class StableAudioOpenRequest(ImageSeedMixin):
     negative_prompt: Optional[str] = Field(default=None, max_length=TTA_TEXT_MAX_LENGTH)
 
 
+class VideoSeedMixin(StrictRequestModel):
+    seed: Optional[int] = Field(default=None, ge=0, le=MAX_SEED)
+    random_seed: bool = True
+
+    @model_validator(mode="after")
+    def validate_seed_requirements(self):
+        if not self.random_seed and self.seed is None:
+            raise ValueError("seed is required when random_seed is false.")
+        return self
+
+
+class VideoRequestBase(VideoSeedMixin):
+    prompt: str = Field(..., min_length=1, max_length=PROMPT_MAX_LENGTH)
+    negative_prompt: Optional[str] = Field(default=None, max_length=PROMPT_MAX_LENGTH)
+    width: int = Field(768, ge=VIDEO_MIN_SIZE, le=VIDEO_MAX_SIZE, multiple_of=VIDEO_SIZE_STEP)
+    height: int = Field(432, ge=VIDEO_MIN_SIZE, le=VIDEO_MAX_SIZE, multiple_of=VIDEO_SIZE_STEP)
+    num_frames: int = Field(49, ge=8, le=VIDEO_MAX_FRAMES)
+    num_inference_steps: int = Field(30, ge=1, le=80)
+    guidance_scale: float = Field(5.0, ge=0.0, le=25.0)
+
+
+class WanT2VRequest(VideoRequestBase):
+    num_frames: int = Field(49, ge=8, le=81)
+    num_inference_steps: int = Field(30, ge=1, le=60)
+    guidance_scale: float = Field(5.0, ge=0.0, le=20.0)
+
+
+class CogVideoXRequest(VideoRequestBase):
+    num_frames: int = Field(49, ge=8, le=49)
+    num_inference_steps: int = Field(50, ge=1, le=80)
+    guidance_scale: float = Field(6.0, ge=0.0, le=20.0)
+
+
+class LTXVideoRequest(VideoRequestBase):
+    num_frames: int = Field(97, ge=8, le=257)
+    num_inference_steps: int = Field(30, ge=1, le=80)
+    guidance_scale: float = Field(3.0, ge=0.0, le=25.0)
+    decode_timestep: float = Field(0.03, ge=0.0, le=1.0)
+    decode_noise_scale: float = Field(0.025, ge=0.0, le=1.0)
+
+
 def _field_spec(
     field_type: str,
     *,
@@ -292,6 +345,29 @@ def _audio_response(
         "audio_duration_seconds": audio_duration_seconds,
         "duration_seconds": audio_duration_seconds,
         "sample_rate": sample_rate,
+        "created_at": _utc_now_iso(),
+    }
+
+
+def _video_response(
+    *,
+    model_id: str,
+    output_id: str,
+    output_path: Path,
+    parameters_used: dict[str, Any],
+    duration_ms: int,
+):
+    relative_url = _output_url("videos", output_id)
+    return {
+        "success": True,
+        "model_id": model_id,
+        "modality": "video",
+        "output_url": relative_url,
+        "public_output_url": _public_output_url(relative_url),
+        "file_name": output_id,
+        "mime_type": mimetypes.guess_type(output_path.name)[0] or "video/mp4",
+        "parameters_used": parameters_used,
+        "duration_ms": duration_ms,
         "created_at": _utc_now_iso(),
     }
 
@@ -373,6 +449,74 @@ def _model_registry() -> list[dict[str, Any]]:
                 "This endpoint uses FluxPipeline-compatible arguments in current server implementation.",
                 "Unsupported request keys are rejected via schema validation.",
             ],
+        },
+        {
+            "id": "wan21-t2v-1.3b",
+            "displayName": "Wan2.1 T2V 1.3B",
+            "modality": "video",
+            "endpoint": "/generate/video/wan-1.3b",
+            "fields": {
+                "prompt": _field_spec("string", required=True, max_length=PROMPT_MAX_LENGTH),
+                "negative_prompt": _field_spec("string", required=False, max_length=PROMPT_MAX_LENGTH),
+                "width": _field_spec("integer", default=768, minimum=VIDEO_MIN_SIZE, maximum=VIDEO_MAX_SIZE, step=VIDEO_SIZE_STEP),
+                "height": _field_spec("integer", default=432, minimum=VIDEO_MIN_SIZE, maximum=VIDEO_MAX_SIZE, step=VIDEO_SIZE_STEP),
+                "num_frames": _field_spec("integer", default=49, minimum=8, maximum=81),
+                "num_inference_steps": _field_spec("integer", default=30, minimum=1, maximum=60),
+                "guidance_scale": _field_spec("number", default=5.0, minimum=0.0, maximum=20.0),
+                "seed": _field_spec("integer", required=False, minimum=0, maximum=MAX_SEED),
+                "random_seed": _field_spec("boolean", default=True),
+            },
+            "capabilities": {
+                "fps": 16,
+                "negativePrompt": True,
+                "seed": True,
+            },
+        },
+        {
+            "id": "cogvideox-2b",
+            "displayName": "CogVideoX 2B",
+            "modality": "video",
+            "endpoint": "/generate/video/cogvideox-2b",
+            "fields": {
+                "prompt": _field_spec("string", required=True, max_length=PROMPT_MAX_LENGTH),
+                "negative_prompt": _field_spec("string", required=False, max_length=PROMPT_MAX_LENGTH),
+                "width": _field_spec("integer", default=768, minimum=VIDEO_MIN_SIZE, maximum=VIDEO_MAX_SIZE, step=VIDEO_SIZE_STEP),
+                "height": _field_spec("integer", default=432, minimum=VIDEO_MIN_SIZE, maximum=VIDEO_MAX_SIZE, step=VIDEO_SIZE_STEP),
+                "num_frames": _field_spec("integer", default=49, minimum=8, maximum=49),
+                "num_inference_steps": _field_spec("integer", default=50, minimum=1, maximum=80),
+                "guidance_scale": _field_spec("number", default=6.0, minimum=0.0, maximum=20.0),
+                "seed": _field_spec("integer", required=False, minimum=0, maximum=MAX_SEED),
+                "random_seed": _field_spec("boolean", default=True),
+            },
+            "capabilities": {
+                "fps": 8,
+                "negativePrompt": True,
+                "seed": True,
+            },
+        },
+        {
+            "id": "ltx-video-2b",
+            "displayName": "LTX-Video 2B",
+            "modality": "video",
+            "endpoint": "/generate/video/ltx-video",
+            "fields": {
+                "prompt": _field_spec("string", required=True, max_length=PROMPT_MAX_LENGTH),
+                "negative_prompt": _field_spec("string", required=False, max_length=PROMPT_MAX_LENGTH),
+                "width": _field_spec("integer", default=768, minimum=VIDEO_MIN_SIZE, maximum=VIDEO_MAX_SIZE, step=VIDEO_SIZE_STEP),
+                "height": _field_spec("integer", default=432, minimum=VIDEO_MIN_SIZE, maximum=VIDEO_MAX_SIZE, step=VIDEO_SIZE_STEP),
+                "num_frames": _field_spec("integer", default=97, minimum=8, maximum=257),
+                "num_inference_steps": _field_spec("integer", default=30, minimum=1, maximum=80),
+                "guidance_scale": _field_spec("number", default=3.0, minimum=0.0, maximum=25.0),
+                "seed": _field_spec("integer", required=False, minimum=0, maximum=MAX_SEED),
+                "random_seed": _field_spec("boolean", default=True),
+                "decode_timestep": _field_spec("number", default=0.03, minimum=0.0, maximum=1.0),
+                "decode_noise_scale": _field_spec("number", default=0.025, minimum=0.0, maximum=1.0),
+            },
+            "capabilities": {
+                "fps": 24,
+                "negativePrompt": True,
+                "seed": True,
+            },
         },
         {
             "id": "kokoro-82m",
@@ -861,6 +1005,148 @@ def generate_openflux(req: OpenFluxRequest):
         "duration_ms": duration_ms,
         "created_at": _utc_now_iso(),
     }
+
+
+@app.post("/generate/video/wan-1.3b")
+def generate_wan_t2v(req: WanT2VRequest):
+    output_id = f"vid_{uuid.uuid4().hex}.mp4"
+    output_path = VIDEO_OUTPUT_DIR / output_id
+    seed_used = _resolve_seed(req.random_seed, req.seed)
+    start = time.perf_counter()
+
+    try:
+        _run_with_timeout(
+            wan_t2v_runner.generate,
+            prompt=req.prompt,
+            negative_prompt=req.negative_prompt,
+            output_path=str(output_path),
+            width=req.width,
+            height=req.height,
+            num_frames=req.num_frames,
+            steps=req.num_inference_steps,
+            guidance_scale=req.guidance_scale,
+            seed=seed_used,
+            fps=16,
+        )
+        _check_output_exists(output_path)
+    except Exception as exc:
+        raise _map_runtime_error(exc)
+
+    duration_ms = int((time.perf_counter() - start) * 1000)
+    return _video_response(
+        model_id="wan21-t2v-1.3b",
+        output_id=output_id,
+        output_path=output_path,
+        parameters_used={
+            "prompt": req.prompt,
+            "negative_prompt": req.negative_prompt,
+            "width": req.width,
+            "height": req.height,
+            "num_frames": req.num_frames,
+            "num_inference_steps": req.num_inference_steps,
+            "guidance_scale": req.guidance_scale,
+            "seed": seed_used,
+            "random_seed": req.random_seed,
+            "fps": 16,
+        },
+        duration_ms=duration_ms,
+    )
+
+
+@app.post("/generate/video/cogvideox-2b")
+def generate_cogvideox(req: CogVideoXRequest):
+    output_id = f"vid_{uuid.uuid4().hex}.mp4"
+    output_path = VIDEO_OUTPUT_DIR / output_id
+    seed_used = _resolve_seed(req.random_seed, req.seed)
+    start = time.perf_counter()
+
+    try:
+        _run_with_timeout(
+            cogvideox_runner.generate,
+            prompt=req.prompt,
+            negative_prompt=req.negative_prompt,
+            output_path=str(output_path),
+            width=req.width,
+            height=req.height,
+            num_frames=req.num_frames,
+            steps=req.num_inference_steps,
+            guidance_scale=req.guidance_scale,
+            seed=seed_used,
+            fps=8,
+        )
+        _check_output_exists(output_path)
+    except Exception as exc:
+        raise _map_runtime_error(exc)
+
+    duration_ms = int((time.perf_counter() - start) * 1000)
+    return _video_response(
+        model_id="cogvideox-2b",
+        output_id=output_id,
+        output_path=output_path,
+        parameters_used={
+            "prompt": req.prompt,
+            "negative_prompt": req.negative_prompt,
+            "width": req.width,
+            "height": req.height,
+            "num_frames": req.num_frames,
+            "num_inference_steps": req.num_inference_steps,
+            "guidance_scale": req.guidance_scale,
+            "seed": seed_used,
+            "random_seed": req.random_seed,
+            "fps": 8,
+        },
+        duration_ms=duration_ms,
+    )
+
+
+@app.post("/generate/video/ltx-video")
+def generate_ltx_video(req: LTXVideoRequest):
+    output_id = f"vid_{uuid.uuid4().hex}.mp4"
+    output_path = VIDEO_OUTPUT_DIR / output_id
+    seed_used = _resolve_seed(req.random_seed, req.seed)
+    start = time.perf_counter()
+
+    try:
+        _run_with_timeout(
+            ltx_video_runner.generate,
+            prompt=req.prompt,
+            negative_prompt=req.negative_prompt,
+            output_path=str(output_path),
+            width=req.width,
+            height=req.height,
+            num_frames=req.num_frames,
+            steps=req.num_inference_steps,
+            guidance_scale=req.guidance_scale,
+            seed=seed_used,
+            fps=24,
+            decode_timestep=req.decode_timestep,
+            decode_noise_scale=req.decode_noise_scale,
+        )
+        _check_output_exists(output_path)
+    except Exception as exc:
+        raise _map_runtime_error(exc)
+
+    duration_ms = int((time.perf_counter() - start) * 1000)
+    return _video_response(
+        model_id="ltx-video-2b",
+        output_id=output_id,
+        output_path=output_path,
+        parameters_used={
+            "prompt": req.prompt,
+            "negative_prompt": req.negative_prompt,
+            "width": req.width,
+            "height": req.height,
+            "num_frames": req.num_frames,
+            "num_inference_steps": req.num_inference_steps,
+            "guidance_scale": req.guidance_scale,
+            "seed": seed_used,
+            "random_seed": req.random_seed,
+            "fps": 24,
+            "decode_timestep": req.decode_timestep,
+            "decode_noise_scale": req.decode_noise_scale,
+        },
+        duration_ms=duration_ms,
+    )
 
 
 @app.post("/generate/tts/kokoro")

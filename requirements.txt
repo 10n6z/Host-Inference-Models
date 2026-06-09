@@ -19,4 +19,6 @@ huggingface_hub
 pillow
 numpy
 soundfile
+imageio
+imageio-ffmpeg
 kokoro>=0.9.4
