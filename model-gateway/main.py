@@ -14,6 +14,7 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SERVICES_ROOT = REPO_ROOT / "services"
@@ -21,6 +22,7 @@ if str(SERVICES_ROOT) not in sys.path:
     sys.path.insert(0, str(SERVICES_ROOT))
 
 from common.responses import build_failed_response, build_success_response, utc_now_iso
+from adapters import ollama
 
 load_dotenv(REPO_ROOT / "servers" / ".env")
 load_dotenv(REPO_ROOT / ".env")
@@ -33,6 +35,13 @@ GATEWAY_TIMEOUT_SECONDS = float(os.getenv("GATEWAY_TIMEOUT_SECONDS", "300"))
 GATEWAY_PUBLIC_BASE_URL = os.getenv("GATEWAY_PUBLIC_BASE_URL", "http://localhost:9000").rstrip("/")
 
 app = FastAPI(title="Model Server Gateway")
+gateway_jobs: dict[str, dict[str, Any]] = {}
+
+# Serve generated assets so clients only need to reach the gateway, not the
+# per-model containers (their public URLs use internal compose hostnames).
+OUTPUT_ROOT = Path(os.getenv("OUTPUT_ROOT", "/outputs"))
+if OUTPUT_ROOT.is_dir():
+    app.mount("/outputs", StaticFiles(directory=str(OUTPUT_ROOT)), name="outputs")
 
 def _load_registry() -> dict[str, Any]:
     with open(REGISTRY_PATH, encoding="utf-8") as handle:
@@ -57,6 +66,8 @@ def _models_payload() -> list[dict[str, Any]]:
                 "id": model_id,
                 "displayName": entry.get("display_name", model_id),
                 "modality": entry.get("modality", "text-to-speech"),
+                "task": entry.get("task", entry.get("modality", "text-to-speech")),
+                "mode": entry.get("mode", "sync"),
                 "service": entry.get("service"),
                 "family": entry.get("family"),
                 "endpoint": entry.get("endpoint"),
@@ -98,7 +109,10 @@ def _translate_upstream_error(
         request_id=request_id,
         details=upstream_body.get("details") or upstream_body.get("error", {}).get("details") or {},
     )
-    return JSONResponse(status_code=status_code, content=payload)
+    gateway_status = status_code
+    if status_code >= 500 and status_code not in (503, 504):
+        gateway_status = 502
+    return JSONResponse(status_code=gateway_status, content=payload)
 
 
 def _request_id_from(raw_body: dict[str, Any], request: Request) -> str:
@@ -111,6 +125,43 @@ def _request_id_from(raw_body: dict[str, Any], request: Request) -> str:
         if body_request_id:
             return body_request_id
     return uuid.uuid4().hex
+
+
+def _gateway_public_base_from_request(request: Request) -> str:
+    host = request.headers.get("host")
+    if not host:
+        return GATEWAY_PUBLIC_BASE_URL
+    proto = request.headers.get("x-forwarded-proto") or request.url.scheme or "http"
+    return f"{proto}://{host}".rstrip("/")
+
+
+def _gateway_output_url(output_url: Any, request: Request) -> Any:
+    if not isinstance(output_url, str) or not output_url.strip():
+        return output_url
+
+    raw = output_url.strip()
+    path = raw
+    if raw.startswith("http://") or raw.startswith("https://"):
+        try:
+            path = httpx.URL(raw).path
+        except Exception:
+            return output_url
+
+    marker = "/outputs/"
+    marker_index = path.find(marker)
+    if marker_index < 0:
+        return output_url
+
+    output_path = path[marker_index:]
+    return f"{_gateway_public_base_from_request(request)}{output_path}"
+
+
+def _rewrite_output_urls(payload: dict[str, Any], request: Request) -> dict[str, Any]:
+    rewritten = dict(payload)
+    for key in ("output_url", "outputUrl", "public_output_url", "publicOutputUrl"):
+        if key in rewritten:
+            rewritten[key] = _gateway_output_url(rewritten[key], request)
+    return rewritten
 
 
 def _forward_payload_from(raw_body: dict[str, Any], *, model_id: str, include_model: bool) -> dict[str, Any]:
@@ -184,7 +235,20 @@ def models():
 
 @app.post("/generate")
 async def generate(request: Request):
-    raw_body = await request.json()
+    try:
+        raw_body = await request.json()
+    except ValueError:
+        request_id = request.headers.get("X-Request-ID") or uuid.uuid4().hex
+        payload = build_failed_response(
+            model="unknown",
+            service="model-gateway",
+            family="model-gateway",
+            error_type="ValidationError",
+            message="Request body must be valid JSON.",
+            request_id=request_id,
+        )
+        return JSONResponse(status_code=422, content=payload)
+
     request_id = _request_id_from(raw_body if isinstance(raw_body, dict) else {}, request)
     if not isinstance(raw_body, dict):
         payload = build_failed_response(
@@ -227,11 +291,44 @@ async def generate(request: Request):
     family = registry_entry.get("family", registry_entry.get("service", "unknown"))
     service_name = registry_entry.get("service", "unknown")
 
+    if registry_entry.get("provider") == "ollama":
+        started = time.perf_counter()
+        logger.info(
+            "gateway_ollama_request request_id=%s model=%s service=%s endpoint=%s",
+            request_id,
+            model_id,
+            service_name,
+            target_endpoint,
+        )
+        try:
+            adapter_payload = await ollama.generate(
+                model_id=model_id,
+                entry=registry_entry,
+                raw_body=raw_body,
+                timeout_seconds=GATEWAY_TIMEOUT_SECONDS,
+                request_id=request_id,
+            )
+        except ollama.OllamaAdapterError as exc:
+            payload = build_failed_response(
+                model=model_id,
+                service=service_name,
+                family=family,
+                error_type="ServiceUnavailable" if exc.status_code in (503, 504) else "InferenceError",
+                message=str(exc),
+                request_id=request_id,
+            )
+            return JSONResponse(status_code=exc.status_code, content=payload)
+
+        duration_ms = int((time.perf_counter() - started) * 1000)
+        success_payload = build_success_response(adapter_payload, request_id=request_id, family=family)
+        success_payload["duration_ms"] = duration_ms
+        return JSONResponse(status_code=200, content=success_payload)
+
     try:
         forward_payload = _forward_payload_from(
             raw_body,
             model_id=model_id,
-            include_model=target_endpoint.endswith("/generate"),
+            include_model=bool(registry_entry.get("include_model", target_endpoint.endswith("/generate"))),
         )
     except ValueError as exc:
         payload = build_failed_response(
@@ -307,9 +404,36 @@ async def generate(request: Request):
 
     if not isinstance(upstream_body, dict):
         upstream_body = {"result": upstream_body}
+    upstream_body = _rewrite_output_urls(upstream_body, request)
 
     success_payload = build_success_response(upstream_body, request_id=request_id, family=family)
     success_payload.setdefault("model_id", model_id)
     success_payload.setdefault("modelId", model_id)
     success_payload["duration_ms"] = duration_ms
+    if success_payload.get("status") in {"queued", "running", "processing"}:
+        gateway_jobs[request_id] = {
+            "request_id": request_id,
+            "model": model_id,
+            "status": success_payload.get("status"),
+            "model_job_id": success_payload.get("model_job_id") or success_payload.get("job_id"),
+            "response": success_payload,
+            "updated_at": utc_now_iso(),
+        }
+        return JSONResponse(status_code=202, content=success_payload)
     return JSONResponse(status_code=200, content=success_payload)
+
+
+@app.get("/jobs/{job_id}")
+def get_job(job_id: str):
+    job = gateway_jobs.get(job_id)
+    if job is None:
+        payload = build_failed_response(
+            model="unknown",
+            service="model-gateway",
+            family="model-gateway",
+            error_type="UnknownJob",
+            message=f"Unknown gateway job '{job_id}'.",
+            request_id=job_id,
+        )
+        return JSONResponse(status_code=404, content=payload)
+    return job

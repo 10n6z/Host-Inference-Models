@@ -1,9 +1,22 @@
 services:
+  multimodal-legacy:
+    runtime: nvidia
+    environment:
+      DEVICE: cuda
+      NVIDIA_VISIBLE_DEVICES: all
+    volumes:
+      - /gpt-lab/long/models/text-to-image:/models/text-to-image
+      - /gpt-lab/long/models/text-to-video:/models/text-to-video
+      - /gpt-lab/long/models/text-to-speech:/models/text-to-speech
+      - /gpt-lab/long/models/text-to-audio:/models/text-to-audio
+
   audio-kokoro:
     runtime: nvidia
     environment:
       DEVICE: cuda
       NVIDIA_VISIBLE_DEVICES: all
+    volumes:
+      - /gpt-lab/long/models/hf-serving/onnx-community--Kokoro-82M-v1.0-ONNX:/models/hf/onnx-community--Kokoro-82M-v1.0-ONNX
 
   audio-melotts:
     runtime: nvidia
@@ -35,21 +48,30 @@ services:
       DEVICE: cuda
       NVIDIA_VISIBLE_DEVICES: all
 
-  audio-fish-speech:
-    runtime: nvidia
-    environment:
-      DEVICE: cuda
-      FISH_SPEECH_DEVICE: cuda
-      NVIDIA_VISIBLE_DEVICES: all
-
   audio-xtts:
     runtime: nvidia
     environment:
       DEVICE: cuda
       NVIDIA_VISIBLE_DEVICES: all
+    volumes:
+      - /gpt-lab/long/models/hf-serving/coqui--XTTS-v2:/models/hf/coqui--XTTS-v2
 
   audio-csm:
     runtime: nvidia
     environment:
       DEVICE: cuda
       NVIDIA_VISIBLE_DEVICES: all
+      # sesame/csm-1b is a gated repo; token comes from the repo-root .env on the host
+      HF_TOKEN: ${HF_TOKEN:-}
+      HUGGING_FACE_HUB_TOKEN: ${HF_TOKEN:-}
+    volumes:
+      - /gpt-lab/long/models/hf-serving/sesame--csm-1b:/models/hf/sesame--csm-1b
+
+  audio-legacy:
+    runtime: nvidia
+    environment:
+      DEVICE: cuda
+      NVIDIA_VISIBLE_DEVICES: all
+    volumes:
+      - /gpt-lab/long/models/text-to-speech:/models/text-to-speech
+      - /gpt-lab/long/models/text-to-audio:/models/text-to-audio

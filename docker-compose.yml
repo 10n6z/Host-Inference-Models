@@ -8,13 +8,13 @@ x-audio-environment: &audio-environment
   MPLCONFIGDIR: /models/cache/matplotlib
   HF_MODELS_ROOT: /models/hf
   DEVICE: cpu
-  INFERENCE_TIMEOUT_SECONDS: "300"
+  INFERENCE_TIMEOUT_SECONDS: "600"
 
 x-audio-volumes: &audio-volumes
   - ./model-cache:/models
   - ./models/hf:/models/hf
   - ./models/hf-cache:/models/huggingface
-  - ./outputs:/outputs
+  - ${OUTPUTS_HOST_DIR:-./outputs}:/outputs
 
 services:
   model-gateway:
@@ -25,17 +25,52 @@ services:
       - "9000:9000"
     environment:
       GATEWAY_PUBLIC_BASE_URL: http://localhost:9000
-      GATEWAY_TIMEOUT_SECONDS: "300"
+      GATEWAY_TIMEOUT_SECONDS: "600"
+      OUTPUT_ROOT: /outputs
+      # Override when Ollama runs outside compose (e.g. host systemd):
+      # OLLAMA_BASE_URL=http://host.docker.internal:11434
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://ollama:11434}
+    volumes:
+      - ${OUTPUTS_HOST_DIR:-./outputs}:/outputs
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
+      - ollama
       - audio-kokoro
       - audio-melotts
       - audio-outetts
       - audio-espnet
       - audio-bark
       - audio-chatterbox
-      - audio-fish-speech
       - audio-xtts
       - audio-csm
+      - audio-legacy
+    networks:
+      - model-server
+
+  ollama:
+    image: ollama/ollama:latest
+    expose:
+      - "11434"
+    volumes:
+      - ollama-data:/root/.ollama
+    networks:
+      - model-server
+
+  multimodal-legacy:
+    profiles:
+      - docker-multimodal
+    build:
+      context: .
+      dockerfile: services/multimodal-legacy/Dockerfile
+    expose:
+      - "8001"
+    environment:
+      <<: *audio-environment
+      PUBLIC_BASE_URL: http://multimodal-legacy:8001
+      IMAGE_PUBLIC_BASE_URL: http://multimodal-legacy:8001
+      AUDIO_PUBLIC_BASE_URL: http://multimodal-legacy:8001
+    volumes: *audio-volumes
     networks:
       - model-server
 
@@ -119,21 +154,6 @@ services:
     networks:
       - model-server
 
-  audio-fish-speech:
-    build:
-      context: .
-      dockerfile: services/audio-fish-speech/Dockerfile
-    expose:
-      - "8108"
-    environment:
-      <<: *audio-environment
-      AUDIO_PUBLIC_BASE_URL: http://audio-fish-speech:8108
-      FISH_SPEECH_DEVICE: cpu
-      FISH_SPEECH_MODEL_PATH: /models/fish-speech/fish-speech-v1.5
-    volumes: *audio-volumes
-    networks:
-      - model-server
-
   audio-xtts:
     build:
       context: .
@@ -161,6 +181,25 @@ services:
     networks:
       - model-server
 
+  audio-legacy:
+    build:
+      context: .
+      dockerfile: services/audio-legacy/Dockerfile
+    expose:
+      - "8002"
+    environment:
+      <<: *audio-environment
+      AUDIO_PUBLIC_BASE_URL: http://audio-legacy:8002
+      COSYVOICE2_MODEL_PATH: /models/text-to-speech/cosyvoice2-0.5b
+      INDEXTTS2_MODEL_PATH: /models/text-to-speech/indextts-2
+      STABLE_AUDIO_MODEL_PATH: /models/text-to-audio/stable-audio-open-1.0
+    volumes: *audio-volumes
+    networks:
+      - model-server
+
 networks:
   model-server:
     driver: bridge
+
+volumes:
+  ollama-data:

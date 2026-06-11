@@ -25,9 +25,6 @@ def app_module(tmp_path, monkeypatch):
         "auraflow": None,
         "openflux": None,
         "kokoro": None,
-        "fish_speech": None,
-        "cosyvoice2": None,
-        "indextts2": None,
         "stable_audio_open": None,
     }
 
@@ -57,9 +54,6 @@ def app_module(tmp_path, monkeypatch):
     monkeypatch.setattr(module.auraflow_runner, "generate", _fake_image("auraflow"))
     monkeypatch.setattr(module.openflux_runner, "generate", _fake_image("openflux"))
     monkeypatch.setattr(module.kokoro_runner, "generate", _fake_kokoro)
-    monkeypatch.setattr(module.fish_speech_runner, "generate", _fake_audio("fish_speech"))
-    monkeypatch.setattr(module.cosyvoice2_runner, "generate", _fake_audio("cosyvoice2"))
-    monkeypatch.setattr(module.indextts2_runner, "generate", _fake_audio("indextts2"))
     monkeypatch.setattr(module.stable_audio_open_runner, "generate", _fake_audio("stable_audio_open"))
 
     module._captured = captured
@@ -150,7 +144,6 @@ def test_unsupported_field_rejected(client):
 
 def test_audio_contract_rejects_arbitrary_gpu_endpoint_field(client):
     res = client.post(
-        "/generate/tts/fish-speech",
         json={
             "text": "x",
             "language": "en",
@@ -181,61 +174,6 @@ def test_tts_accepts_text_voice_language_speed(client, app_module):
     assert app_module._captured["kokoro"]["lang_code"] == "a"
     assert body["audio_kind"] == "tts"
     assert body["audio_duration_seconds"] == pytest.approx(1.23, rel=1e-6)
-
-
-def test_fish_speech_contract_and_metadata(client, app_module):
-    res = client.post(
-        "/generate/tts/fish-speech",
-        json={
-            "text": "hello fish speech",
-            "language": "en",
-            "voice": "default",
-            "speed": 1.0,
-            "format": "wav",
-        },
-    )
-    assert res.status_code == 200
-    body = res.json()
-    assert body["model_id"] == "fish-speech-v1.5"
-    assert body["audio_kind"] == "tts"
-    assert app_module._captured["fish_speech"]["voice"] == "default"
-
-
-def test_cosyvoice2_accepts_instruction_and_stream(client, app_module):
-    res = client.post(
-        "/generate/tts/cosyvoice2",
-        json={
-            "text": "hello cosyvoice two",
-            "language": "en",
-            "speaker": "default",
-            "instruction": "calm and warm",
-            "speed": 1.0,
-            "format": "wav",
-            "stream": False,
-        },
-    )
-    assert res.status_code == 200
-    body = res.json()
-    assert body["model_id"] == "cosyvoice2-0.5b"
-    assert app_module._captured["cosyvoice2"]["instruction"] == "calm and warm"
-
-
-def test_indextts2_accepts_emotion_and_duration_control(client, app_module):
-    res = client.post(
-        "/generate/tts/indextts2",
-        json={
-            "text": "hello index tts",
-            "speaker": "default",
-            "emotion": "neutral",
-            "duration_control": 1.0,
-            "speed": 1.0,
-            "format": "wav",
-        },
-    )
-    assert res.status_code == 200
-    body = res.json()
-    assert body["model_id"] == "indextts-2"
-    assert app_module._captured["indextts2"]["emotion"] == "neutral"
 
 
 def test_stable_audio_open_seed_mapping(client, app_module):

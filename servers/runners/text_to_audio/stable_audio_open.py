@@ -1,8 +1,13 @@
 from __future__ import annotations
 
 import os
+import sys
 from pathlib import Path
 from typing import Any
+
+# torchsde BrownianInterval bisection recurses deeply on CPU (float-precision
+# boundary queries); default limit of 1000 aborts generation mid-run.
+sys.setrecursionlimit(20000)
 
 import numpy as np
 import soundfile as sf

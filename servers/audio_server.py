@@ -51,10 +51,8 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field
 
 from runners.text_to_audio.stable_audio_open import StableAudioOpenRunner
-from runners.text_to_speech.cosyvoice2_runner import CosyVoice2Runner
 from runners.text_to_speech.e2_tts_runner import E2TTSRunner
 from runners.text_to_speech.f5_tts_runner import F5TTSRunner
-from runners.text_to_speech.indextts2_runner import IndexTTS2Runner
 from runners.text_to_speech.kitten_tts_runner import KittenTTSRunner
 from runners.text_to_speech.mms_tts_runner import MMSTTSRunner
 from runners.text_to_speech.speecht5_runner import SpeechT5Runner
@@ -74,8 +72,6 @@ logger = logging.getLogger(__name__)
 app = FastAPI(title="Local AI Audio Generation Server")
 app.mount("/outputs", StaticFiles(directory=str(OUTPUT_ROOT)), name="outputs")
 
-cosyvoice2_runner = CosyVoice2Runner()
-indextts2_runner = IndexTTS2Runner()
 stable_audio_runner = StableAudioOpenRunner()
 mms_tts_runners = {lang: MMSTTSRunner(lang=lang) for lang in ("eng", "deu", "fra", "spa")}
 speecht5_runner = SpeechT5Runner()
@@ -95,30 +91,6 @@ class APIError(Exception):
 
 class StrictRequestModel(BaseModel):
     model_config = ConfigDict(extra="forbid")
-
-
-class CosyVoice2Request(StrictRequestModel):
-    text: str = Field(..., min_length=1, max_length=TTS_TEXT_MAX_LENGTH)
-    seed: Optional[int] = Field(default=None, ge=0, le=MAX_SEED)
-    reference_audio: Optional[str] = Field(default=None, min_length=1, max_length=MAX_REF_AUDIO_PATH_LENGTH)
-    reference_text: Optional[str] = Field(default=None, max_length=MAX_REFERENCE_TEXT_LENGTH)
-    speed: float = Field(1.0, ge=0.5, le=2.0)
-    format: str = Field("wav", pattern=WAV_ONLY_PATTERN)
-    speaker: str = Field("default", min_length=1, max_length=100)
-    instruction: Optional[str] = Field(default=None, max_length=500)
-    stream: bool = False
-
-
-class IndexTTS2Request(StrictRequestModel):
-    text: str = Field(..., min_length=1, max_length=TTS_TEXT_MAX_LENGTH)
-    seed: Optional[int] = Field(default=None, ge=0, le=MAX_SEED)
-    reference_audio: Optional[str] = Field(default=None, min_length=1, max_length=MAX_REF_AUDIO_PATH_LENGTH)
-    reference_text: Optional[str] = Field(default=None, max_length=MAX_REFERENCE_TEXT_LENGTH)
-    speed: float = Field(1.0, ge=0.5, le=2.0)
-    format: str = Field("wav", pattern=WAV_ONLY_PATTERN)
-    speaker: str = Field("default", min_length=1, max_length=100)
-    emotion: Optional[str] = Field(default=None, min_length=1, max_length=100)
-    duration_control: Optional[float] = Field(default=None, ge=0.5, le=120.0)
 
 
 class StableAudioRequest(StrictRequestModel):
@@ -204,34 +176,6 @@ def _field_spec(
 
 def _model_registry() -> list[dict[str, Any]]:
     return [
-        {
-            "id": "cosyvoice2-0.5b",
-            "displayName": "CosyVoice2-0.5B",
-            "modality": "text-to-speech",
-            "endpoint": "/generate/tts/cosyvoice2",
-            "fields": {
-                "text": _field_spec("string", required=True, max_length=TTS_TEXT_MAX_LENGTH),
-                "seed": _field_spec("integer", required=False, minimum=0, maximum=MAX_SEED),
-                "reference_audio": _field_spec("string", required=False, max_length=MAX_REF_AUDIO_PATH_LENGTH),
-                "reference_text": _field_spec("string", required=False, max_length=MAX_REFERENCE_TEXT_LENGTH),
-                "speed": _field_spec("number", default=1.0, minimum=0.5, maximum=2.0),
-                "format": _field_spec("string", default="wav", enum=["wav"]),
-            },
-        },
-        {
-            "id": "indextts-2",
-            "displayName": "IndexTTS-2",
-            "modality": "text-to-speech",
-            "endpoint": "/generate/tts/indextts2",
-            "fields": {
-                "text": _field_spec("string", required=True, max_length=TTS_TEXT_MAX_LENGTH),
-                "seed": _field_spec("integer", required=False, minimum=0, maximum=MAX_SEED),
-                "reference_audio": _field_spec("string", required=False, max_length=MAX_REF_AUDIO_PATH_LENGTH),
-                "reference_text": _field_spec("string", required=False, max_length=MAX_REFERENCE_TEXT_LENGTH),
-                "speed": _field_spec("number", default=1.0, minimum=0.5, maximum=2.0),
-                "format": _field_spec("string", default="wav", enum=["wav"]),
-            },
-        },
         {
             "id": "stable-audio-open-1.0",
             "displayName": "Stable Audio Open 1.0",
@@ -479,100 +423,6 @@ def health():
 @app.get("/models")
 def models():
     return {"models": _model_registry()}
-
-
-@app.post("/generate/tts/cosyvoice2")
-def generate_cosyvoice2(req: CosyVoice2Request):
-    format_normalized = req.format.lower()
-    output_id = f"cosyvoice2_{uuid.uuid4().hex}.{format_normalized}"
-    output_path = AUDIO_OUTPUT_DIR / output_id
-    start = time.perf_counter()
-
-    try:
-        audio_meta = _run_with_timeout(
-            cosyvoice2_runner.generate,
-            text=req.text,
-            output_path=str(output_path),
-            speaker=req.speaker,
-            speed=req.speed,
-            format=format_normalized,
-            seed=req.seed,
-            reference_audio_id=req.reference_audio,
-            instruction=req.instruction,
-            stream=req.stream,
-            parameters={
-                "referenceText": req.reference_text,
-                "seed": req.seed,
-            },
-        )
-        _check_output_exists(output_path)
-    except Exception as exc:
-        raise _map_tts_runtime_error(exc)
-
-    return _audio_response(
-        model_id="cosyvoice2-0.5b",
-        modality="text-to-speech",
-        audio_kind="tts",
-        output_id=output_id,
-        output_path=output_path,
-        parameters_used={
-            "text": req.text,
-            "seed": req.seed,
-            "reference_audio": req.reference_audio,
-            "reference_text": req.reference_text,
-            "speed": req.speed,
-            "format": format_normalized,
-        },
-        duration_ms=int((time.perf_counter() - start) * 1000),
-        audio_meta=audio_meta,
-    )
-
-
-@app.post("/generate/tts/indextts2")
-def generate_indextts2(req: IndexTTS2Request):
-    format_normalized = req.format.lower()
-    output_id = f"indextts2_{uuid.uuid4().hex}.{format_normalized}"
-    output_path = AUDIO_OUTPUT_DIR / output_id
-    start = time.perf_counter()
-
-    try:
-        audio_meta = _run_with_timeout(
-            indextts2_runner.generate,
-            text=req.text,
-            output_path=str(output_path),
-            speaker=req.speaker,
-            speed=req.speed,
-            format=format_normalized,
-            seed=req.seed,
-            reference_audio_id=req.reference_audio,
-            emotion=req.emotion,
-            duration_control=req.duration_control,
-            parameters={
-                "referenceText": req.reference_text,
-                "seed": req.seed,
-            },
-        )
-        _check_output_exists(output_path)
-    except Exception as exc:
-        raise _map_tts_runtime_error(exc)
-
-    return _audio_response(
-        model_id="indextts-2",
-        modality="text-to-speech",
-        audio_kind="tts",
-        output_id=output_id,
-        output_path=output_path,
-        parameters_used={
-            "text": req.text,
-            "seed": req.seed,
-            "reference_audio": req.reference_audio,
-            "reference_text": req.reference_text,
-            "speed": req.speed,
-            "format": format_normalized,
-        },
-        duration_ms=int((time.perf_counter() - start) * 1000),
-        audio_meta=audio_meta,
-    )
 
 
 @app.post("/generate/audio/stable-audio")

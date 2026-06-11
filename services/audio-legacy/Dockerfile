@@ -23,6 +23,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libgomp1 \
     espeak-ng \
     ca-certificates \
+    gcc \
+    libc6-dev \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /install /usr/local

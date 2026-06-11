@@ -75,6 +75,28 @@ curl http://localhost:9000/models
 
 Only `model-gateway` publishes port `9000`; model services stay on internal Docker service names.
 
+The gateway owns model routing in `model-gateway/registry.yaml`. Add new models there by setting `task`, `modality`, `service`, `endpoint`, and supported `fields`; GPT-Lab backend does not need a routing change.
+
+Gateway inference contract:
+
+```bash
+curl -X POST http://localhost:9000/generate \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "flux-1-schnell",
+    "input": { "prompt": "a cinematic mountain lake" },
+    "parameters": { "width": 1024, "height": 1024, "steps": 4 },
+    "request_id": "optional-backend-job-id"
+  }'
+```
+
+Gateway endpoints:
+
+- `GET /health`
+- `GET /models`
+- `POST /generate`
+- `GET /jobs/{job_id}`
+
 Storage inspection:
 
 ```bash

@@ -67,8 +67,6 @@ def test_audio_server_models_are_audio_only(tmp_path, monkeypatch):
     assert res.status_code == 200
     models = res.json()["models"]
     assert {model["id"] for model in models} == {
-        "cosyvoice2-0.5b",
-        "indextts-2",
         "stable-audio-open-1.0",
         "mms-tts",
         "speecht5-tts",
@@ -78,78 +76,6 @@ def test_audio_server_models_are_audio_only(tmp_path, monkeypatch):
     }
     assert {model["modality"] for model in models} == {"text-to-speech", "text-to-audio"}
     assert next(model for model in models if model["id"] == "stable-audio-open-1.0")["endpoint"] == "/generate/audio/stable-audio"
-
-
-def test_audio_server_cosyvoice2_endpoint(tmp_path, monkeypatch):
-    module = _import_server("audio_server", tmp_path, monkeypatch)
-    captured = {}
-
-    def _fake_cosyvoice2(**kwargs):
-        captured.update(kwargs)
-        Path(kwargs["output_path"]).write_bytes(b"WAV")
-        return {"sample_rate": 22050, "duration_seconds": 1.0}
-
-    monkeypatch.setattr(module.cosyvoice2_runner, "generate", _fake_cosyvoice2)
-    client = TestClient(module.app)
-
-    res = client.post(
-        "/generate/tts/cosyvoice2",
-        json={"text": "Hello, this is a CosyVoice2 smoke test.", "seed": 42},
-    )
-    assert res.status_code == 200
-    body = res.json()
-    assert body["modelId"] == "cosyvoice2-0.5b"
-    assert body["modality"] == "text-to-speech"
-    assert body["outputId"].startswith("cosyvoice2_")
-    assert body["outputUrl"].startswith("http://audio.test:8002/outputs/audio/cosyvoice2_")
-    assert captured["seed"] == 42
-    assert captured["parameters"]["seed"] == 42
-
-
-def test_audio_server_new_tts_failure_shape(tmp_path, monkeypatch):
-    module = _import_server("audio_server", tmp_path, monkeypatch)
-
-    def _fail_cosyvoice2(**kwargs):
-        raise RuntimeError("synthetic failure")
-
-    monkeypatch.setattr(module.cosyvoice2_runner, "generate", _fail_cosyvoice2)
-    client = TestClient(module.app)
-
-    res = client.post("/generate/tts/cosyvoice2", json={"text": "hello"})
-    assert res.status_code == 500
-    body = res.json()
-    assert body == {
-        "success": False,
-        "code": "TTS_GENERATION_FAILED",
-        "message": "synthetic failure",
-        "details": {},
-    }
-
-
-def test_audio_server_indextts2_endpoint(tmp_path, monkeypatch):
-    module = _import_server("audio_server", tmp_path, monkeypatch)
-    captured = {}
-
-    def _fake_indextts2(**kwargs):
-        captured.update(kwargs)
-        Path(kwargs["output_path"]).write_bytes(b"WAV")
-        return {"sample_rate": 24000, "duration_seconds": 1.0}
-
-    monkeypatch.setattr(module.indextts2_runner, "generate", _fake_indextts2)
-    client = TestClient(module.app)
-
-    res = client.post(
-        "/generate/tts/indextts2",
-        json={"text": "Hello, this is an IndexTTS two smoke test.", "seed": 42},
-    )
-    assert res.status_code == 200
-    body = res.json()
-    assert body["modelId"] == "indextts-2"
-    assert body["modality"] == "text-to-speech"
-    assert body["outputId"].startswith("indextts2_")
-    assert body["outputUrl"].startswith("http://audio.test:8002/outputs/audio/indextts2_")
-    assert captured["seed"] == 42
-    assert captured["parameters"]["seed"] == 42
 
 
 def test_audio_server_stable_audio_endpoint(tmp_path, monkeypatch):

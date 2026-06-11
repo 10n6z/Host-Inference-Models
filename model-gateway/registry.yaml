@@ -2,6 +2,10 @@
 # Rollback: point endpoint back to audio-legacy legacy_path.
 
 services:
+  multimodal-legacy:
+    name: multimodal-legacy
+    family: image-video-legacy
+    base_url: http://host.docker.internal:8001
   audio-legacy:
     name: audio-legacy
     family: audio-legacy
@@ -30,10 +34,6 @@ services:
     name: audio-chatterbox
     family: audio-chatterbox
     base_url: http://audio-chatterbox:8107
-  audio-fish-speech:
-    name: audio-fish-speech
-    family: audio-fish-speech
-    base_url: http://audio-fish-speech:8108
   audio-xtts:
     name: audio-xtts
     family: audio-xtts
@@ -42,7 +42,820 @@ services:
     name: audio-csm
     family: audio-csm
     base_url: http://audio-csm:8110
+  ollama:
+    name: ollama
+    family: text-generation
+    base_url: http://ollama:11434
 models:
+  "deepseek-coder:6.7b":
+    display_name: "deepseek-coder:6.7b"
+    task: text-generation
+    modality: text
+    provider: ollama
+    runtime_model: "deepseek-coder:6.7b"
+    service: ollama
+    family: text-generation
+    endpoint: http://ollama:11434/api/generate
+    mode: sync
+    fields:
+      prompt: { type: string, required: false, max_length: 12000 }
+      messages: { type: array, required: false }
+      system_instruction: { type: string, required: false, max_length: 8000 }
+      temperature: { type: number, default: 0.7, min: 0.0, max: 2.0 }
+      max_tokens: { type: integer, default: 512, min: 1, max: 8192 }
+
+  "deepseek-r1:1.5b":
+    display_name: "deepseek-r1:1.5b"
+    task: text-generation
+    modality: text
+    provider: ollama
+    runtime_model: "deepseek-r1:1.5b"
+    service: ollama
+    family: text-generation
+    endpoint: http://ollama:11434/api/generate
+    mode: sync
+    fields:
+      prompt: { type: string, required: false, max_length: 12000 }
+      messages: { type: array, required: false }
+      system_instruction: { type: string, required: false, max_length: 8000 }
+      temperature: { type: number, default: 0.7, min: 0.0, max: 2.0 }
+      max_tokens: { type: integer, default: 512, min: 1, max: 8192 }
+
+  "deepseek-r1:8b":
+    display_name: "deepseek-r1:8b"
+    task: text-generation
+    modality: text
+    provider: ollama
+    runtime_model: "deepseek-r1:8b"
+    service: ollama
+    family: text-generation
+    endpoint: http://ollama:11434/api/generate
+    mode: sync
+    fields:
+      prompt: { type: string, required: false, max_length: 12000 }
+      messages: { type: array, required: false }
+      system_instruction: { type: string, required: false, max_length: 8000 }
+      temperature: { type: number, default: 0.7, min: 0.0, max: 2.0 }
+      max_tokens: { type: integer, default: 512, min: 1, max: 8192 }
+
+  "deepseek-v2:16b":
+    display_name: "deepseek-v2:16b"
+    task: text-generation
+    modality: text
+    provider: ollama
+    runtime_model: "deepseek-v2:16b"
+    service: ollama
+    family: text-generation
+    endpoint: http://ollama:11434/api/generate
+    mode: sync
+    fields:
+      prompt: { type: string, required: false, max_length: 12000 }
+      messages: { type: array, required: false }
+      system_instruction: { type: string, required: false, max_length: 8000 }
+      temperature: { type: number, default: 0.7, min: 0.0, max: 2.0 }
+      max_tokens: { type: integer, default: 512, min: 1, max: 8192 }
+
+  "gemma:7b-instruct":
+    display_name: "gemma:7b-instruct"
+    task: text-generation
+    modality: text
+    provider: ollama
+    runtime_model: "gemma:7b-instruct"
+    service: ollama
+    family: text-generation
+    endpoint: http://ollama:11434/api/generate
+    mode: sync
+    fields:
+      prompt: { type: string, required: false, max_length: 12000 }
+      messages: { type: array, required: false }
+      system_instruction: { type: string, required: false, max_length: 8000 }
+      temperature: { type: number, default: 0.7, min: 0.0, max: 2.0 }
+      max_tokens: { type: integer, default: 512, min: 1, max: 8192 }
+
+  "gpt-oss:120b":
+    display_name: "gpt-oss:120b"
+    task: text-generation
+    modality: text
+    provider: ollama
+    runtime_model: "gpt-oss:120b"
+    service: ollama
+    family: text-generation
+    endpoint: http://ollama:11434/api/generate
+    mode: sync
+    fields:
+      prompt: { type: string, required: false, max_length: 12000 }
+      messages: { type: array, required: false }
+      system_instruction: { type: string, required: false, max_length: 8000 }
+      temperature: { type: number, default: 0.7, min: 0.0, max: 2.0 }
+      max_tokens: { type: integer, default: 512, min: 1, max: 8192 }
+
+  "gpt-oss:20b":
+    display_name: "gpt-oss:20b"
+    task: text-generation
+    modality: text
+    provider: ollama
+    runtime_model: "gpt-oss:20b"
+    service: ollama
+    family: text-generation
+    endpoint: http://ollama:11434/api/generate
+    mode: sync
+    fields:
+      prompt: { type: string, required: false, max_length: 12000 }
+      messages: { type: array, required: false }
+      system_instruction: { type: string, required: false, max_length: 8000 }
+      temperature: { type: number, default: 0.7, min: 0.0, max: 2.0 }
+      max_tokens: { type: integer, default: 512, min: 1, max: 8192 }
+
+  "gpt-oss:latest":
+    display_name: "gpt-oss:latest"
+    task: text-generation
+    modality: text
+    provider: ollama
+    runtime_model: "gpt-oss:latest"
+    service: ollama
+    family: text-generation
+    endpoint: http://ollama:11434/api/generate
+    mode: sync
+    fields:
+      prompt: { type: string, required: false, max_length: 12000 }
+      messages: { type: array, required: false }
+      system_instruction: { type: string, required: false, max_length: 8000 }
+      temperature: { type: number, default: 0.7, min: 0.0, max: 2.0 }
+      max_tokens: { type: integer, default: 512, min: 1, max: 8192 }
+
+  "hf.co/mradermacher/Llama-Poro-2-70B-Instruct-GGUF:Q4_K_M":
+    display_name: "hf.co/mradermacher/Llama-Poro-2-70B-Instruct-GGUF:Q4_K_M"
+    task: text-generation
+    modality: text
+    provider: ollama
+    runtime_model: "hf.co/mradermacher/Llama-Poro-2-70B-Instruct-GGUF:Q4_K_M"
+    service: ollama
+    family: text-generation
+    endpoint: http://ollama:11434/api/generate
+    mode: sync
+    fields:
+      prompt: { type: string, required: false, max_length: 12000 }
+      messages: { type: array, required: false }
+      system_instruction: { type: string, required: false, max_length: 8000 }
+      temperature: { type: number, default: 0.7, min: 0.0, max: 2.0 }
+      max_tokens: { type: integer, default: 512, min: 1, max: 8192 }
+
+  "hf.co/mradermacher/Llama-Poro-2-8B-Instruct-GGUF:F16":
+    display_name: "hf.co/mradermacher/Llama-Poro-2-8B-Instruct-GGUF:F16"
+    task: text-generation
+    modality: text
+    provider: ollama
+    runtime_model: "hf.co/mradermacher/Llama-Poro-2-8B-Instruct-GGUF:F16"
+    service: ollama
+    family: text-generation
+    endpoint: http://ollama:11434/api/generate
+    mode: sync
+    fields:
+      prompt: { type: string, required: false, max_length: 12000 }
+      messages: { type: array, required: false }
+      system_instruction: { type: string, required: false, max_length: 8000 }
+      temperature: { type: number, default: 0.7, min: 0.0, max: 2.0 }
+      max_tokens: { type: integer, default: 512, min: 1, max: 8192 }
+
+  "hf.co/mradermacher/Llama-Poro-2-8B-Instruct-GGUF:Q4_K_M":
+    display_name: "hf.co/mradermacher/Llama-Poro-2-8B-Instruct-GGUF:Q4_K_M"
+    task: text-generation
+    modality: text
+    provider: ollama
+    runtime_model: "hf.co/mradermacher/Llama-Poro-2-8B-Instruct-GGUF:Q4_K_M"
+    service: ollama
+    family: text-generation
+    endpoint: http://ollama:11434/api/generate
+    mode: sync
+    fields:
+      prompt: { type: string, required: false, max_length: 12000 }
+      messages: { type: array, required: false }
+      system_instruction: { type: string, required: false, max_length: 8000 }
+      temperature: { type: number, default: 0.7, min: 0.0, max: 2.0 }
+      max_tokens: { type: integer, default: 512, min: 1, max: 8192 }
+
+  "hf.co/unsloth/SmolLM2-135M-Instruct-GGUF:Q4_K_M":
+    display_name: "hf.co/unsloth/SmolLM2-135M-Instruct-GGUF:Q4_K_M"
+    task: text-generation
+    modality: text
+    provider: ollama
+    runtime_model: "hf.co/unsloth/SmolLM2-135M-Instruct-GGUF:Q4_K_M"
+    service: ollama
+    family: text-generation
+    endpoint: http://ollama:11434/api/generate
+    mode: sync
+    fields:
+      prompt: { type: string, required: false, max_length: 12000 }
+      messages: { type: array, required: false }
+      system_instruction: { type: string, required: false, max_length: 8000 }
+      temperature: { type: number, default: 0.7, min: 0.0, max: 2.0 }
+      max_tokens: { type: integer, default: 512, min: 1, max: 8192 }
+
+  "llama2-uncensored:latest":
+    display_name: "llama2-uncensored:latest"
+    task: text-generation
+    modality: text
+    provider: ollama
+    runtime_model: "llama2-uncensored:latest"
+    service: ollama
+    family: text-generation
+    endpoint: http://ollama:11434/api/generate
+    mode: sync
+    fields:
+      prompt: { type: string, required: false, max_length: 12000 }
+      messages: { type: array, required: false }
+      system_instruction: { type: string, required: false, max_length: 8000 }
+      temperature: { type: number, default: 0.7, min: 0.0, max: 2.0 }
+      max_tokens: { type: integer, default: 512, min: 1, max: 8192 }
+
+  "llama2:latest":
+    display_name: "llama2:latest"
+    task: text-generation
+    modality: text
+    provider: ollama
+    runtime_model: "llama2:latest"
+    service: ollama
+    family: text-generation
+    endpoint: http://ollama:11434/api/generate
+    mode: sync
+    fields:
+      prompt: { type: string, required: false, max_length: 12000 }
+      messages: { type: array, required: false }
+      system_instruction: { type: string, required: false, max_length: 8000 }
+      temperature: { type: number, default: 0.7, min: 0.0, max: 2.0 }
+      max_tokens: { type: integer, default: 512, min: 1, max: 8192 }
+
+  "llama3.1:latest":
+    display_name: "llama3.1:latest"
+    task: text-generation
+    modality: text
+    provider: ollama
+    runtime_model: "llama3.1:latest"
+    service: ollama
+    family: text-generation
+    endpoint: http://ollama:11434/api/generate
+    mode: sync
+    fields:
+      prompt: { type: string, required: false, max_length: 12000 }
+      messages: { type: array, required: false }
+      system_instruction: { type: string, required: false, max_length: 8000 }
+      temperature: { type: number, default: 0.7, min: 0.0, max: 2.0 }
+      max_tokens: { type: integer, default: 512, min: 1, max: 8192 }
+
+  "llama3.2:3b":
+    display_name: "llama3.2:3b"
+    task: text-generation
+    modality: text
+    provider: ollama
+    runtime_model: "llama3.2:3b"
+    service: ollama
+    family: text-generation
+    endpoint: http://ollama:11434/api/generate
+    mode: sync
+    fields:
+      prompt: { type: string, required: false, max_length: 12000 }
+      messages: { type: array, required: false }
+      system_instruction: { type: string, required: false, max_length: 8000 }
+      temperature: { type: number, default: 0.7, min: 0.0, max: 2.0 }
+      max_tokens: { type: integer, default: 512, min: 1, max: 8192 }
+
+  "llama3.2:latest":
+    display_name: "llama3.2:latest"
+    task: text-generation
+    modality: text
+    provider: ollama
+    runtime_model: "llama3.2:latest"
+    service: ollama
+    family: text-generation
+    endpoint: http://ollama:11434/api/generate
+    mode: sync
+    fields:
+      prompt: { type: string, required: false, max_length: 12000 }
+      messages: { type: array, required: false }
+      system_instruction: { type: string, required: false, max_length: 8000 }
+      temperature: { type: number, default: 0.7, min: 0.0, max: 2.0 }
+      max_tokens: { type: integer, default: 512, min: 1, max: 8192 }
+
+  "llama3.3:70b":
+    display_name: "llama3.3:70b"
+    task: text-generation
+    modality: text
+    provider: ollama
+    runtime_model: "llama3.3:70b"
+    service: ollama
+    family: text-generation
+    endpoint: http://ollama:11434/api/generate
+    mode: sync
+    fields:
+      prompt: { type: string, required: false, max_length: 12000 }
+      messages: { type: array, required: false }
+      system_instruction: { type: string, required: false, max_length: 8000 }
+      temperature: { type: number, default: 0.7, min: 0.0, max: 2.0 }
+      max_tokens: { type: integer, default: 512, min: 1, max: 8192 }
+
+  "llama4:latest":
+    display_name: "llama4:latest"
+    task: text-generation
+    modality: text
+    provider: ollama
+    runtime_model: "llama4:latest"
+    service: ollama
+    family: text-generation
+    endpoint: http://ollama:11434/api/generate
+    mode: sync
+    fields:
+      prompt: { type: string, required: false, max_length: 12000 }
+      messages: { type: array, required: false }
+      system_instruction: { type: string, required: false, max_length: 8000 }
+      temperature: { type: number, default: 0.7, min: 0.0, max: 2.0 }
+      max_tokens: { type: integer, default: 512, min: 1, max: 8192 }
+
+  "llava:latest":
+    display_name: "llava:latest"
+    task: text-generation
+    modality: text
+    provider: ollama
+    runtime_model: "llava:latest"
+    service: ollama
+    family: text-generation
+    endpoint: http://ollama:11434/api/generate
+    mode: sync
+    fields:
+      prompt: { type: string, required: false, max_length: 12000 }
+      messages: { type: array, required: false }
+      system_instruction: { type: string, required: false, max_length: 8000 }
+      temperature: { type: number, default: 0.7, min: 0.0, max: 2.0 }
+      max_tokens: { type: integer, default: 512, min: 1, max: 8192 }
+
+  "mistral:7b":
+    display_name: "mistral:7b"
+    task: text-generation
+    modality: text
+    provider: ollama
+    runtime_model: "mistral:7b"
+    service: ollama
+    family: text-generation
+    endpoint: http://ollama:11434/api/generate
+    mode: sync
+    fields:
+      prompt: { type: string, required: false, max_length: 12000 }
+      messages: { type: array, required: false }
+      system_instruction: { type: string, required: false, max_length: 8000 }
+      temperature: { type: number, default: 0.7, min: 0.0, max: 2.0 }
+      max_tokens: { type: integer, default: 512, min: 1, max: 8192 }
+
+  "mistral:7b-instruct":
+    display_name: "mistral:7b-instruct"
+    task: text-generation
+    modality: text
+    provider: ollama
+    runtime_model: "mistral:7b-instruct"
+    service: ollama
+    family: text-generation
+    endpoint: http://ollama:11434/api/generate
+    mode: sync
+    fields:
+      prompt: { type: string, required: false, max_length: 12000 }
+      messages: { type: array, required: false }
+      system_instruction: { type: string, required: false, max_length: 8000 }
+      temperature: { type: number, default: 0.7, min: 0.0, max: 2.0 }
+      max_tokens: { type: integer, default: 512, min: 1, max: 8192 }
+
+  "mistral:latest":
+    display_name: "mistral:latest"
+    task: text-generation
+    modality: text
+    provider: ollama
+    runtime_model: "mistral:latest"
+    service: ollama
+    family: text-generation
+    endpoint: http://ollama:11434/api/generate
+    mode: sync
+    fields:
+      prompt: { type: string, required: false, max_length: 12000 }
+      messages: { type: array, required: false }
+      system_instruction: { type: string, required: false, max_length: 8000 }
+      temperature: { type: number, default: 0.7, min: 0.0, max: 2.0 }
+      max_tokens: { type: integer, default: 512, min: 1, max: 8192 }
+
+  "phi4-reasoning:14b":
+    display_name: "phi4-reasoning:14b"
+    task: text-generation
+    modality: text
+    provider: ollama
+    runtime_model: "phi4-reasoning:14b"
+    service: ollama
+    family: text-generation
+    endpoint: http://ollama:11434/api/generate
+    mode: sync
+    fields:
+      prompt: { type: string, required: false, max_length: 12000 }
+      messages: { type: array, required: false }
+      system_instruction: { type: string, required: false, max_length: 8000 }
+      temperature: { type: number, default: 0.7, min: 0.0, max: 2.0 }
+      max_tokens: { type: integer, default: 512, min: 1, max: 8192 }
+
+  "phi4:14b":
+    display_name: "phi4:14b"
+    task: text-generation
+    modality: text
+    provider: ollama
+    runtime_model: "phi4:14b"
+    service: ollama
+    family: text-generation
+    endpoint: http://ollama:11434/api/generate
+    mode: sync
+    fields:
+      prompt: { type: string, required: false, max_length: 12000 }
+      messages: { type: array, required: false }
+      system_instruction: { type: string, required: false, max_length: 8000 }
+      temperature: { type: number, default: 0.7, min: 0.0, max: 2.0 }
+      max_tokens: { type: integer, default: 512, min: 1, max: 8192 }
+
+  "qwen2.5-coder:32b":
+    display_name: "qwen2.5-coder:32b"
+    task: text-generation
+    modality: text
+    provider: ollama
+    runtime_model: "qwen2.5-coder:32b"
+    service: ollama
+    family: text-generation
+    endpoint: http://ollama:11434/api/generate
+    mode: sync
+    fields:
+      prompt: { type: string, required: false, max_length: 12000 }
+      messages: { type: array, required: false }
+      system_instruction: { type: string, required: false, max_length: 8000 }
+      temperature: { type: number, default: 0.7, min: 0.0, max: 2.0 }
+      max_tokens: { type: integer, default: 512, min: 1, max: 8192 }
+
+  "qwen2.5-coder:7b":
+    display_name: "qwen2.5-coder:7b"
+    task: text-generation
+    modality: text
+    provider: ollama
+    runtime_model: "qwen2.5-coder:7b"
+    service: ollama
+    family: text-generation
+    endpoint: http://ollama:11434/api/generate
+    mode: sync
+    fields:
+      prompt: { type: string, required: false, max_length: 12000 }
+      messages: { type: array, required: false }
+      system_instruction: { type: string, required: false, max_length: 8000 }
+      temperature: { type: number, default: 0.7, min: 0.0, max: 2.0 }
+      max_tokens: { type: integer, default: 512, min: 1, max: 8192 }
+
+  "qwen2.5-coder:latest":
+    display_name: "qwen2.5-coder:latest"
+    task: text-generation
+    modality: text
+    provider: ollama
+    runtime_model: "qwen2.5-coder:latest"
+    service: ollama
+    family: text-generation
+    endpoint: http://ollama:11434/api/generate
+    mode: sync
+    fields:
+      prompt: { type: string, required: false, max_length: 12000 }
+      messages: { type: array, required: false }
+      system_instruction: { type: string, required: false, max_length: 8000 }
+      temperature: { type: number, default: 0.7, min: 0.0, max: 2.0 }
+      max_tokens: { type: integer, default: 512, min: 1, max: 8192 }
+
+  "qwen3-coder-next:Q4_K_M":
+    display_name: "qwen3-coder-next:Q4_K_M"
+    task: text-generation
+    modality: text
+    provider: ollama
+    runtime_model: "qwen3-coder-next:Q4_K_M"
+    service: ollama
+    family: text-generation
+    endpoint: http://ollama:11434/api/generate
+    mode: sync
+    fields:
+      prompt: { type: string, required: false, max_length: 12000 }
+      messages: { type: array, required: false }
+      system_instruction: { type: string, required: false, max_length: 8000 }
+      temperature: { type: number, default: 0.7, min: 0.0, max: 2.0 }
+      max_tokens: { type: integer, default: 512, min: 1, max: 8192 }
+
+  "qwen3-coder-next:latest":
+    display_name: "qwen3-coder-next:latest"
+    task: text-generation
+    modality: text
+    provider: ollama
+    runtime_model: "qwen3-coder-next:latest"
+    service: ollama
+    family: text-generation
+    endpoint: http://ollama:11434/api/generate
+    mode: sync
+    fields:
+      prompt: { type: string, required: false, max_length: 12000 }
+      messages: { type: array, required: false }
+      system_instruction: { type: string, required: false, max_length: 8000 }
+      temperature: { type: number, default: 0.7, min: 0.0, max: 2.0 }
+      max_tokens: { type: integer, default: 512, min: 1, max: 8192 }
+
+  "qwen3-coder:latest":
+    display_name: "qwen3-coder:latest"
+    task: text-generation
+    modality: text
+    provider: ollama
+    runtime_model: "qwen3-coder:latest"
+    service: ollama
+    family: text-generation
+    endpoint: http://ollama:11434/api/generate
+    mode: sync
+    fields:
+      prompt: { type: string, required: false, max_length: 12000 }
+      messages: { type: array, required: false }
+      system_instruction: { type: string, required: false, max_length: 8000 }
+      temperature: { type: number, default: 0.7, min: 0.0, max: 2.0 }
+      max_tokens: { type: integer, default: 512, min: 1, max: 8192 }
+
+  "qwen3.5:0.8b":
+    display_name: "qwen3.5:0.8b"
+    task: text-generation
+    modality: text
+    provider: ollama
+    runtime_model: "qwen3.5:0.8b"
+    service: ollama
+    family: text-generation
+    endpoint: http://ollama:11434/api/generate
+    mode: sync
+    fields:
+      prompt: { type: string, required: false, max_length: 12000 }
+      messages: { type: array, required: false }
+      system_instruction: { type: string, required: false, max_length: 8000 }
+      temperature: { type: number, default: 0.7, min: 0.0, max: 2.0 }
+      max_tokens: { type: integer, default: 512, min: 1, max: 8192 }
+
+  "qwen3.5:35b":
+    display_name: "qwen3.5:35b"
+    task: text-generation
+    modality: text
+    provider: ollama
+    runtime_model: "qwen3.5:35b"
+    service: ollama
+    family: text-generation
+    endpoint: http://ollama:11434/api/generate
+    mode: sync
+    fields:
+      prompt: { type: string, required: false, max_length: 12000 }
+      messages: { type: array, required: false }
+      system_instruction: { type: string, required: false, max_length: 8000 }
+      temperature: { type: number, default: 0.7, min: 0.0, max: 2.0 }
+      max_tokens: { type: integer, default: 512, min: 1, max: 8192 }
+
+  "qwen3.5:9b":
+    display_name: "qwen3.5:9b"
+    task: text-generation
+    modality: text
+    provider: ollama
+    runtime_model: "qwen3.5:9b"
+    service: ollama
+    family: text-generation
+    endpoint: http://ollama:11434/api/generate
+    mode: sync
+    fields:
+      prompt: { type: string, required: false, max_length: 12000 }
+      messages: { type: array, required: false }
+      system_instruction: { type: string, required: false, max_length: 8000 }
+      temperature: { type: number, default: 0.7, min: 0.0, max: 2.0 }
+      max_tokens: { type: integer, default: 512, min: 1, max: 8192 }
+
+  "qwen3.6:latest":
+    display_name: "qwen3.6:latest"
+    task: text-generation
+    modality: text
+    provider: ollama
+    runtime_model: "qwen3.6:latest"
+    service: ollama
+    family: text-generation
+    endpoint: http://ollama:11434/api/generate
+    mode: sync
+    fields:
+      prompt: { type: string, required: false, max_length: 12000 }
+      messages: { type: array, required: false }
+      system_instruction: { type: string, required: false, max_length: 8000 }
+      temperature: { type: number, default: 0.7, min: 0.0, max: 2.0 }
+      max_tokens: { type: integer, default: 512, min: 1, max: 8192 }
+
+  "qwen3:8b":
+    display_name: "qwen3:8b"
+    task: text-generation
+    modality: text
+    provider: ollama
+    runtime_model: "qwen3:8b"
+    service: ollama
+    family: text-generation
+    endpoint: http://ollama:11434/api/generate
+    mode: sync
+    fields:
+      prompt: { type: string, required: false, max_length: 12000 }
+      messages: { type: array, required: false }
+      system_instruction: { type: string, required: false, max_length: 8000 }
+      temperature: { type: number, default: 0.7, min: 0.0, max: 2.0 }
+      max_tokens: { type: integer, default: 512, min: 1, max: 8192 }
+
+  "second_constantine/gpt-oss-u:20b":
+    display_name: "second_constantine/gpt-oss-u:20b"
+    task: text-generation
+    modality: text
+    provider: ollama
+    runtime_model: "second_constantine/gpt-oss-u:20b"
+    service: ollama
+    family: text-generation
+    endpoint: http://ollama:11434/api/generate
+    mode: sync
+    fields:
+      prompt: { type: string, required: false, max_length: 12000 }
+      messages: { type: array, required: false }
+      system_instruction: { type: string, required: false, max_length: 8000 }
+      temperature: { type: number, default: 0.7, min: 0.0, max: 2.0 }
+      max_tokens: { type: integer, default: 512, min: 1, max: 8192 }
+
+  "smollm2:135m":
+    display_name: "smollm2:135m"
+    task: text-generation
+    modality: text
+    provider: ollama
+    runtime_model: "smollm2:135m"
+    service: ollama
+    family: text-generation
+    endpoint: http://ollama:11434/api/generate
+    mode: sync
+    fields:
+      prompt: { type: string, required: false, max_length: 12000 }
+      messages: { type: array, required: false }
+      system_instruction: { type: string, required: false, max_length: 8000 }
+      temperature: { type: number, default: 0.7, min: 0.0, max: 2.0 }
+      max_tokens: { type: integer, default: 512, min: 1, max: 8192 }
+
+  "starcoder2:15b":
+    display_name: "starcoder2:15b"
+    task: text-generation
+    modality: text
+    provider: ollama
+    runtime_model: "starcoder2:15b"
+    service: ollama
+    family: text-generation
+    endpoint: http://ollama:11434/api/generate
+    mode: sync
+    fields:
+      prompt: { type: string, required: false, max_length: 12000 }
+      messages: { type: array, required: false }
+      system_instruction: { type: string, required: false, max_length: 8000 }
+      temperature: { type: number, default: 0.7, min: 0.0, max: 2.0 }
+      max_tokens: { type: integer, default: 512, min: 1, max: 8192 }
+
+  "svjack/gpt-oss-20b-heretic:latest":
+    display_name: "svjack/gpt-oss-20b-heretic:latest"
+    task: text-generation
+    modality: text
+    provider: ollama
+    runtime_model: "svjack/gpt-oss-20b-heretic:latest"
+    service: ollama
+    family: text-generation
+    endpoint: http://ollama:11434/api/generate
+    mode: sync
+    fields:
+      prompt: { type: string, required: false, max_length: 12000 }
+      messages: { type: array, required: false }
+      system_instruction: { type: string, required: false, max_length: 8000 }
+      temperature: { type: number, default: 0.7, min: 0.0, max: 2.0 }
+      max_tokens: { type: integer, default: 512, min: 1, max: 8192 }
+
+  flux-1-schnell:
+    display_name: FLUX.1 Schnell
+    task: image-generation
+    modality: image
+    service: multimodal-legacy
+    family: image-video-legacy
+    endpoint: http://host.docker.internal:8001/generate/image/flux
+    mode: sync
+    fields:
+      prompt: { type: string, required: true, max_length: 4000 }
+      width: { type: integer, default: 1024, min: 512, max: 2048 }
+      height: { type: integer, default: 1024, min: 512, max: 2048 }
+      steps: { type: integer, default: 4, min: 1, max: 20 }
+      guidance_scale: { type: number, default: 0.0, min: 0.0, max: 0.0 }
+      random_seed: { type: boolean, default: true }
+      seed: { type: integer, required: false, min: 0, max: 2147483647 }
+
+  stable-diffusion-3.5-medium:
+    display_name: Stable Diffusion 3.5 Medium
+    task: image-generation
+    modality: image
+    service: multimodal-legacy
+    family: image-video-legacy
+    endpoint: http://host.docker.internal:8001/generate/image/sd35
+    mode: sync
+    fields:
+      prompt: { type: string, required: true, max_length: 4000 }
+      negative_prompt: { type: string, required: false, max_length: 4000 }
+      width: { type: integer, default: 1024, min: 512, max: 2048 }
+      height: { type: integer, default: 1024, min: 512, max: 2048 }
+      steps: { type: integer, default: 28, min: 1, max: 60 }
+      guidance_scale: { type: number, default: 7.0, min: 0.0, max: 20.0 }
+      random_seed: { type: boolean, default: true }
+      seed: { type: integer, required: false, min: 0, max: 2147483647 }
+
+  auraflow-v0.3:
+    display_name: AuraFlow v0.3
+    task: image-generation
+    modality: image
+    service: multimodal-legacy
+    family: image-video-legacy
+    endpoint: http://host.docker.internal:8001/generate/image/auraflow
+    mode: sync
+    fields:
+      prompt: { type: string, required: true, max_length: 4000 }
+      negative_prompt: { type: string, required: false, max_length: 4000 }
+      width: { type: integer, default: 1024, min: 512, max: 2048 }
+      height: { type: integer, default: 1024, min: 512, max: 2048 }
+      steps: { type: integer, default: 30, min: 1, max: 60 }
+      guidance_scale: { type: number, default: 5.0, min: 0.0, max: 20.0 }
+      random_seed: { type: boolean, default: true }
+      seed: { type: integer, required: false, min: 0, max: 2147483647 }
+
+  openflux-1:
+    display_name: OpenFLUX.1
+    task: image-generation
+    modality: image
+    service: multimodal-legacy
+    family: image-video-legacy
+    endpoint: http://host.docker.internal:8001/generate/image/openflux
+    mode: sync
+    fields:
+      prompt: { type: string, required: true, max_length: 4000 }
+      width: { type: integer, default: 1024, min: 512, max: 2048 }
+      height: { type: integer, default: 1024, min: 512, max: 2048 }
+      steps: { type: integer, default: 28, min: 1, max: 60 }
+      guidance_scale: { type: number, default: 7.0, min: 0.0, max: 20.0 }
+      random_seed: { type: boolean, default: true }
+      seed: { type: integer, required: false, min: 0, max: 2147483647 }
+
+  wan21-t2v-1.3b:
+    display_name: Wan2.1 T2V 1.3B
+    task: video-generation
+    modality: video
+    service: multimodal-legacy
+    family: image-video-legacy
+    endpoint: http://host.docker.internal:8001/generate/video/wan-1.3b
+    mode: sync
+    fields:
+      prompt: { type: string, required: true, max_length: 4000 }
+      negative_prompt: { type: string, required: false, max_length: 4000 }
+      width: { type: integer, default: 768, min: 256, max: 1024 }
+      height: { type: integer, default: 432, min: 256, max: 1024 }
+      num_frames: { type: integer, default: 49, min: 8, max: 81 }
+      num_inference_steps: { type: integer, default: 30, min: 1, max: 60 }
+      guidance_scale: { type: number, default: 5.0, min: 0.0, max: 20.0 }
+      random_seed: { type: boolean, default: true }
+      seed: { type: integer, required: false, min: 0, max: 2147483647 }
+
+  cogvideox-2b:
+    display_name: CogVideoX 2B
+    task: video-generation
+    modality: video
+    service: multimodal-legacy
+    family: image-video-legacy
+    endpoint: http://host.docker.internal:8001/generate/video/cogvideox-2b
+    mode: sync
+    fields:
+      prompt: { type: string, required: true, max_length: 4000 }
+      negative_prompt: { type: string, required: false, max_length: 4000 }
+      width: { type: integer, default: 768, min: 256, max: 1024 }
+      height: { type: integer, default: 432, min: 256, max: 1024 }
+      num_frames: { type: integer, default: 49, min: 8, max: 49 }
+      num_inference_steps: { type: integer, default: 50, min: 1, max: 80 }
+      guidance_scale: { type: number, default: 6.0, min: 0.0, max: 20.0 }
+      random_seed: { type: boolean, default: true }
+      seed: { type: integer, required: false, min: 0, max: 2147483647 }
+
+  ltx-video-2b:
+    display_name: LTX-Video 2B
+    task: video-generation
+    modality: video
+    service: multimodal-legacy
+    family: image-video-legacy
+    endpoint: http://host.docker.internal:8001/generate/video/ltx-video
+    mode: sync
+    fields:
+      prompt: { type: string, required: true, max_length: 4000 }
+      negative_prompt: { type: string, required: false, max_length: 4000 }
+      width: { type: integer, default: 768, min: 256, max: 1024 }
+      height: { type: integer, default: 432, min: 256, max: 1024 }
+      num_frames: { type: integer, default: 97, min: 8, max: 257 }
+      num_inference_steps: { type: integer, default: 30, min: 1, max: 80 }
+      guidance_scale: { type: number, default: 3.0, min: 0.0, max: 25.0 }
+      random_seed: { type: boolean, default: true }
+      seed: { type: integer, required: false, min: 0, max: 2147483647 }
+      decode_timestep: { type: number, default: 0.03, min: 0.0, max: 1.0 }
+      decode_noise_scale: { type: number, default: 0.025, min: 0.0, max: 1.0 }
+
   kokoro-82m:
     display_name: Kokoro-82M
     modality: text-to-speech
@@ -95,54 +908,6 @@ models:
       repetition_penalty: { type: number, default: 1.1, min: 1.0, max: 3.0 }
       max_length: { type: integer, default: 4096, min: 256, max: 8192 }
       format: { type: string, default: wav, enum: [wav] }
-
-  fish-speech-v1.5:
-    display_name: Fish Speech v1.5
-    modality: text-to-speech
-    service: audio-fish-speech
-    family: audio-fish-speech
-    endpoint: http://audio-fish-speech:8108/generate
-    fields:
-      text: { type: string, required: true, max_length: 12000 }
-      seed: { type: integer, required: false, min: 0, max: 2147483647 }
-      reference_audio: { type: string, required: false, max_length: 500 }
-      reference_text: { type: string, required: false, max_length: 12000 }
-      speed: { type: number, default: 1.0, min: 0.5, max: 2.0 }
-      format: { type: string, default: wav, enum: [wav] }
-
-  cosyvoice2-0.5b:
-    display_name: CosyVoice2-0.5B
-    modality: text-to-speech
-    service: audio-legacy
-    family: audio-legacy
-    endpoint: http://audio-legacy:8002/generate/tts/cosyvoice2
-    fields:
-      text: { type: string, required: true, max_length: 12000 }
-      seed: { type: integer, required: false, min: 0, max: 2147483647 }
-      reference_audio: { type: string, required: false, max_length: 500 }
-      reference_text: { type: string, required: false, max_length: 12000 }
-      speed: { type: number, default: 1.0, min: 0.5, max: 2.0 }
-      format: { type: string, default: wav, enum: [wav] }
-      speaker: { type: string, default: default }
-      instruction: { type: string, required: false, max_length: 500 }
-      stream: { type: boolean, default: false }
-
-  indextts-2:
-    display_name: IndexTTS-2
-    modality: text-to-speech
-    service: audio-legacy
-    family: audio-legacy
-    endpoint: http://audio-legacy:8002/generate/tts/indextts2
-    fields:
-      text: { type: string, required: true, max_length: 12000 }
-      seed: { type: integer, required: false, min: 0, max: 2147483647 }
-      reference_audio: { type: string, required: false, max_length: 500 }
-      reference_text: { type: string, required: false, max_length: 12000 }
-      speed: { type: number, default: 1.0, min: 0.5, max: 2.0 }
-      format: { type: string, default: wav, enum: [wav] }
-      speaker: { type: string, default: default }
-      emotion: { type: string, required: false, max_length: 100 }
-      duration_control: { type: number, required: false, min: 0.5, max: 120.0 }
 
   stable-audio-open-1.0:
     display_name: Stable Audio Open 1.0
