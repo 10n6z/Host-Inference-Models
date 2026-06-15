@@ -48,7 +48,17 @@ from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import Field
+
+from common import (
+    APIError,
+    StrictRequestModel,
+    _check_output_exists,
+    _field_spec,
+    _map_runtime_error,
+    _utc_now_iso,
+    _validation_message,
+)
 
 from runners.text_to_audio.stable_audio_open import StableAudioOpenRunner
 from runners.text_to_speech.e2_tts_runner import E2TTSRunner
@@ -78,19 +88,6 @@ speecht5_runner = SpeechT5Runner()
 f5_tts_runner = F5TTSRunner()
 e2_tts_runner = E2TTSRunner()
 kitten_tts_runner = KittenTTSRunner()
-
-
-class APIError(Exception):
-    def __init__(self, code: str, message: str, status_code: int, details: Optional[dict[str, Any]] = None):
-        self.code = code
-        self.message = message
-        self.status_code = status_code
-        self.details = details or {}
-        super().__init__(message)
-
-
-class StrictRequestModel(BaseModel):
-    model_config = ConfigDict(extra="forbid")
 
 
 class StableAudioRequest(StrictRequestModel):
@@ -146,32 +143,6 @@ class KittenTTSRequest(StrictRequestModel):
     voice: str = Field("expr-voice-2-m", min_length=1, max_length=100)
     speed: float = Field(1.0, ge=0.5, le=3.0)
     format: str = Field("wav", pattern=WAV_ONLY_PATTERN)
-
-
-def _field_spec(
-    field_type: str,
-    *,
-    required: Optional[bool] = None,
-    default: Any = None,
-    minimum: Any = None,
-    maximum: Any = None,
-    enum: Optional[list[Any]] = None,
-    max_length: Optional[int] = None,
-):
-    data: dict[str, Any] = {"type": field_type}
-    if required is not None:
-        data["required"] = required
-    if default is not None:
-        data["default"] = default
-    if minimum is not None:
-        data["min"] = minimum
-    if maximum is not None:
-        data["max"] = maximum
-    if enum is not None:
-        data["enum"] = enum
-    if max_length is not None:
-        data["max_length"] = max_length
-    return data
 
 
 def _model_registry() -> list[dict[str, Any]]:
@@ -265,10 +236,6 @@ def _model_registry() -> list[dict[str, Any]]:
     ]
 
 
-def _utc_now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
-
-
 def _output_url(file_name: str) -> str:
     return f"/outputs/audio/{file_name}"
 
@@ -290,29 +257,6 @@ def _run_with_timeout(func, *args, timeout_seconds: float = INFERENCE_TIMEOUT_SE
             ) from exc
 
 
-def _check_output_exists(path: Path):
-    if not path.exists() or path.stat().st_size == 0:
-        raise APIError(
-            code="OUTPUT_SAVE_FAILED",
-            message="Model run completed but output file was not saved.",
-            status_code=500,
-            details={"output_path": str(path)},
-        )
-
-
-def _map_runtime_error(exc: Exception) -> APIError:
-    message = str(exc)
-    lower = message.lower()
-
-    if isinstance(exc, APIError):
-        return exc
-    if isinstance(exc, FileNotFoundError) or "model folder not found" in lower:
-        return APIError("MODEL_NOT_LOADED", message, 503)
-    if "cuda out of memory" in lower or "out of memory" in lower:
-        return APIError("CUDA_OUT_OF_MEMORY", message, 507)
-    return APIError("GENERATION_FAILED", message, 500)
-
-
 def _safe_error_message(exc: Exception) -> str:
     message = str(exc) or exc.__class__.__name__
     if len(message) > MAX_ERROR_MESSAGE_LENGTH:
@@ -323,16 +267,6 @@ def _safe_error_message(exc: Exception) -> str:
 def _map_tts_runtime_error(exc: Exception) -> APIError:
     logger.exception("TTS generation failed")
     return APIError("TTS_GENERATION_FAILED", _safe_error_message(exc), 500)
-
-
-def _validation_message(errors: list[dict[str, Any]]) -> str:
-    first = errors[0] if errors else {}
-    loc = first.get("loc", [])
-    loc_text = ".".join(str(part) for part in loc if part not in ("body",))
-    msg = first.get("msg", "Invalid request body.")
-    if loc_text:
-        return f"{loc_text}: {msg}"
-    return msg
 
 
 def _audio_response(

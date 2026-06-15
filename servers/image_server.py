@@ -34,7 +34,17 @@ from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import Field, model_validator
+
+from common import (
+    APIError,
+    StrictRequestModel,
+    _check_output_exists,
+    _field_spec,
+    _map_runtime_error,
+    _utc_now_iso,
+    _validation_message,
+)
 
 from runners.text_to_image.auraflow import AuraFlowRunner
 from runners.text_to_image.flux_schnell import FluxSchnellRunner
@@ -55,19 +65,6 @@ flux_runner = FluxSchnellRunner()
 sd35_runner = SD35MediumRunner()
 auraflow_runner = AuraFlowRunner()
 openflux_runner = OpenFluxRunner()
-
-
-class APIError(Exception):
-    def __init__(self, code: str, message: str, status_code: int, details: Optional[dict[str, Any]] = None):
-        self.code = code
-        self.message = message
-        self.status_code = status_code
-        self.details = details or {}
-        super().__init__(message)
-
-
-class StrictRequestModel(BaseModel):
-    model_config = ConfigDict(extra="forbid")
 
 
 class ImageSeedMixin(StrictRequestModel):
@@ -119,38 +116,6 @@ class OpenFluxRequest(ImageSeedMixin):
     guidance_scale: float = Field(7.0, ge=0.0, le=20.0)
     max_sequence_length: int = Field(512, ge=1, le=512)
     num_images: int = Field(1, ge=1, le=MAX_NUM_IMAGES)
-
-
-def _field_spec(
-    field_type: str,
-    *,
-    required: Optional[bool] = None,
-    default: Any = None,
-    minimum: Any = None,
-    maximum: Any = None,
-    step: Any = None,
-    enum: Optional[list[Any]] = None,
-    max_length: Optional[int] = None,
-    description: Optional[str] = None,
-):
-    data: dict[str, Any] = {"type": field_type}
-    if required is not None:
-        data["required"] = required
-    if default is not None:
-        data["default"] = default
-    if minimum is not None:
-        data["min"] = minimum
-    if maximum is not None:
-        data["max"] = maximum
-    if step is not None:
-        data["step"] = step
-    if enum is not None:
-        data["enum"] = enum
-    if max_length is not None:
-        data["max_length"] = max_length
-    if description:
-        data["description"] = description
-    return data
 
 
 def _model_registry() -> list[dict[str, Any]]:
@@ -226,10 +191,6 @@ def _model_registry() -> list[dict[str, Any]]:
     ]
 
 
-def _utc_now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
-
-
 def _output_url(file_name: str) -> str:
     return f"/outputs/images/{file_name}"
 
@@ -262,39 +223,6 @@ def _run_with_timeout(func, *args, timeout_seconds: float = INFERENCE_TIMEOUT_SE
                 message=f"Generation timed out after {int(timeout_seconds)} seconds.",
                 status_code=504,
             ) from exc
-
-
-def _check_output_exists(path: Path):
-    if not path.exists() or path.stat().st_size == 0:
-        raise APIError(
-            code="OUTPUT_SAVE_FAILED",
-            message="Model run completed but output file was not saved.",
-            status_code=500,
-            details={"output_path": str(path)},
-        )
-
-
-def _map_runtime_error(exc: Exception) -> APIError:
-    message = str(exc)
-    lower = message.lower()
-
-    if isinstance(exc, APIError):
-        return exc
-    if isinstance(exc, FileNotFoundError) or "model folder not found" in lower:
-        return APIError("MODEL_NOT_LOADED", message, 503)
-    if "cuda out of memory" in lower or "out of memory" in lower:
-        return APIError("CUDA_OUT_OF_MEMORY", message, 507)
-    return APIError("GENERATION_FAILED", message, 500)
-
-
-def _validation_message(errors: list[dict[str, Any]]) -> str:
-    first = errors[0] if errors else {}
-    loc = first.get("loc", [])
-    loc_text = ".".join(str(part) for part in loc if part not in ("body",))
-    msg = first.get("msg", "Invalid request body.")
-    if loc_text:
-        return f"{loc_text}: {msg}"
-    return msg
 
 
 def _image_response(
