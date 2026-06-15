@@ -1,49 +1,37 @@
+"""Image generation models: flux, sd35, auraflow, openflux.
+
+To add an image model: add a request schema, instantiate its runner, append an
+entry to `model_registry()`, and add a `@router.post(...)` endpoint.
+"""
 from __future__ import annotations
 
 import mimetypes
-import os
-import secrets
 import time
 import uuid
-from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
-from datetime import datetime, timezone
-from pathlib import Path
 from typing import Any, Optional
 
-from dotenv import load_dotenv
-
-BASE_DIR = Path(__file__).resolve().parent
-load_dotenv(BASE_DIR / ".env")
-load_dotenv(BASE_DIR.parent / ".env")
-
-HF_HOME = Path(os.getenv("HF_HOME", BASE_DIR.parent / "models" / "hf-cache")).resolve()
-HF_HUB_CACHE = Path(os.getenv("HF_HUB_CACHE", HF_HOME / "hub")).resolve()
-OUTPUT_ROOT = Path(os.getenv("OUTPUT_ROOT", BASE_DIR.parent / "outputs")).resolve()
-IMAGE_OUTPUT_DIR = OUTPUT_ROOT / "images"
-PUBLIC_BASE_URL = os.getenv("IMAGE_PUBLIC_BASE_URL", os.getenv("PUBLIC_BASE_URL", "http://localhost:8001")).rstrip("/")
-INFERENCE_TIMEOUT_SECONDS = float(os.getenv("INFERENCE_TIMEOUT_SECONDS", "300"))
-
-HF_HOME.mkdir(parents=True, exist_ok=True)
-HF_HUB_CACHE.mkdir(parents=True, exist_ok=True)
-IMAGE_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-
-os.environ["HF_HOME"] = str(HF_HOME)
-os.environ["HF_HUB_CACHE"] = str(HF_HUB_CACHE)
-
-from fastapi import FastAPI, Request
-from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
-from fastapi.staticfiles import StaticFiles
+from fastapi import APIRouter
 from pydantic import Field, model_validator
 
+from config import (
+    IMAGE_MAX_SIZE,
+    IMAGE_MIN_SIZE,
+    IMAGE_OUTPUT_DIR,
+    IMAGE_SIZE_STEP,
+    MAX_NUM_IMAGES,
+    MAX_SEED,
+    PROMPT_MAX_LENGTH,
+    _output_url,
+    _public_output_url,
+    _resolve_seed,
+    _run_with_timeout,
+)
 from common import (
-    APIError,
     StrictRequestModel,
     _check_output_exists,
     _field_spec,
     _map_runtime_error,
     _utc_now_iso,
-    _validation_message,
 )
 
 from runners.text_to_image.auraflow import AuraFlowRunner
@@ -51,15 +39,7 @@ from runners.text_to_image.flux_schnell import FluxSchnellRunner
 from runners.text_to_image.openflux import OpenFluxRunner
 from runners.text_to_image.sd35_medium import SD35MediumRunner
 
-PROMPT_MAX_LENGTH = 4000
-IMAGE_MIN_SIZE = 512
-IMAGE_MAX_SIZE = 2048
-IMAGE_SIZE_STEP = 8
-MAX_SEED = 2_147_483_647
-MAX_NUM_IMAGES = 1
-
-app = FastAPI(title="Local AI Image Generation Server")
-app.mount("/outputs", StaticFiles(directory=str(OUTPUT_ROOT)), name="outputs")
+router = APIRouter()
 
 flux_runner = FluxSchnellRunner()
 sd35_runner = SD35MediumRunner()
@@ -118,7 +98,23 @@ class OpenFluxRequest(ImageSeedMixin):
     num_images: int = Field(1, ge=1, le=MAX_NUM_IMAGES)
 
 
-def _model_registry() -> list[dict[str, Any]]:
+def _image_response(model_id: str, output_id: str, output_path, parameters_used: dict[str, Any], duration_ms: int) -> dict[str, Any]:
+    relative_url = _output_url("images", output_id)
+    return {
+        "success": True,
+        "model_id": model_id,
+        "modality": "image",
+        "output_url": relative_url,
+        "public_output_url": _public_output_url(relative_url),
+        "file_name": output_id,
+        "mime_type": mimetypes.guess_type(output_path.name)[0] or "image/png",
+        "parameters_used": parameters_used,
+        "duration_ms": duration_ms,
+        "created_at": _utc_now_iso(),
+    }
+
+
+def model_registry() -> list[dict[str, Any]]:
     return [
         {
             "id": "flux-1-schnell",
@@ -136,6 +132,10 @@ def _model_registry() -> list[dict[str, Any]]:
                 "random_seed": _field_spec("boolean", default=True),
                 "num_images": _field_spec("integer", default=1, minimum=1, maximum=MAX_NUM_IMAGES),
             },
+            "notes": [
+                "FLUX.1-schnell is timestep-distilled: guidance_scale must be 0.",
+                "max_sequence_length cannot exceed 256.",
+            ],
         },
         {
             "id": "stable-diffusion-3.5-medium",
@@ -187,117 +187,15 @@ def _model_registry() -> list[dict[str, Any]]:
                 "random_seed": _field_spec("boolean", default=True),
                 "num_images": _field_spec("integer", default=1, minimum=1, maximum=MAX_NUM_IMAGES),
             },
+            "notes": [
+                "This endpoint uses FluxPipeline-compatible arguments in current server implementation.",
+                "Unsupported request keys are rejected via schema validation.",
+            ],
         },
     ]
 
 
-def _output_url(file_name: str) -> str:
-    return f"/outputs/images/{file_name}"
-
-
-def _public_output_url(relative_output_url: str) -> str:
-    return f"{PUBLIC_BASE_URL}{relative_output_url}"
-
-
-def _resolve_seed(random_seed: bool, seed: Optional[int]) -> int:
-    if random_seed:
-        return secrets.randbelow(MAX_SEED + 1)
-    if seed is None:
-        raise APIError(
-            code="VALIDATION_ERROR",
-            message="seed is required when random_seed is false.",
-            status_code=422,
-            details={"seed": "Provide seed or set random_seed=true."},
-        )
-    return int(seed)
-
-
-def _run_with_timeout(func, *args, timeout_seconds: float = INFERENCE_TIMEOUT_SECONDS, **kwargs):
-    with ThreadPoolExecutor(max_workers=1) as executor:
-        future = executor.submit(func, *args, **kwargs)
-        try:
-            return future.result(timeout=timeout_seconds)
-        except FuturesTimeoutError as exc:
-            raise APIError(
-                code="TIMEOUT",
-                message=f"Generation timed out after {int(timeout_seconds)} seconds.",
-                status_code=504,
-            ) from exc
-
-
-def _image_response(
-    *,
-    model_id: str,
-    output_id: str,
-    output_path: Path,
-    parameters_used: dict[str, Any],
-    duration_ms: int,
-) -> dict[str, Any]:
-    relative_url = _output_url(output_id)
-    output_url = _public_output_url(relative_url)
-    return {
-        "success": True,
-        "status": "completed",
-        "modelId": model_id,
-        "model_id": model_id,
-        "modality": "image",
-        "outputType": "image",
-        "outputId": output_id,
-        "outputUrl": output_url,
-        "output_url": relative_url,
-        "public_output_url": output_url,
-        "file_name": output_id,
-        "mime_type": mimetypes.guess_type(output_path.name)[0] or "image/png",
-        "parameters_used": parameters_used,
-        "duration_ms": duration_ms,
-        "created_at": _utc_now_iso(),
-    }
-
-
-@app.exception_handler(APIError)
-async def api_error_handler(_: Request, exc: APIError):
-    return JSONResponse(
-        status_code=exc.status_code,
-        content={
-            "success": False,
-            "code": exc.code,
-            "message": exc.message,
-            "details": exc.details,
-        },
-    )
-
-
-@app.exception_handler(RequestValidationError)
-async def request_validation_error_handler(_: Request, exc: RequestValidationError):
-    errors = exc.errors()
-    is_unsupported = any(err.get("type") == "extra_forbidden" for err in errors)
-    code = "UNSUPPORTED_PARAMETER" if is_unsupported else "VALIDATION_ERROR"
-    return JSONResponse(
-        status_code=422,
-        content={
-            "success": False,
-            "code": code,
-            "message": _validation_message(errors),
-            "details": {"errors": errors},
-        },
-    )
-
-
-@app.get("/health")
-def health():
-    return {
-        "status": "ok",
-        "service": "local-ai-image-generation-server",
-        "created_at": _utc_now_iso(),
-    }
-
-
-@app.get("/models")
-def models():
-    return {"models": _model_registry()}
-
-
-@app.post("/generate/image/flux")
+@router.post("/generate/image/flux")
 def generate_flux(req: FluxRequest):
     output_id = f"img_{uuid.uuid4().hex}.png"
     output_path = IMAGE_OUTPUT_DIR / output_id
@@ -322,10 +220,10 @@ def generate_flux(req: FluxRequest):
         raise _map_runtime_error(exc)
 
     return _image_response(
-        model_id="flux-1-schnell",
-        output_id=output_id,
-        output_path=output_path,
-        parameters_used={
+        "flux-1-schnell",
+        output_id,
+        output_path,
+        {
             "prompt": req.prompt,
             "width": req.width,
             "height": req.height,
@@ -336,11 +234,11 @@ def generate_flux(req: FluxRequest):
             "max_sequence_length": req.max_sequence_length,
             "num_images": req.num_images,
         },
-        duration_ms=int((time.perf_counter() - start) * 1000),
+        int((time.perf_counter() - start) * 1000),
     )
 
 
-@app.post("/generate/image/sd35")
+@router.post("/generate/image/sd35")
 def generate_sd35(req: SD35Request):
     output_id = f"img_{uuid.uuid4().hex}.png"
     output_path = IMAGE_OUTPUT_DIR / output_id
@@ -365,10 +263,10 @@ def generate_sd35(req: SD35Request):
         raise _map_runtime_error(exc)
 
     return _image_response(
-        model_id="stable-diffusion-3.5-medium",
-        output_id=output_id,
-        output_path=output_path,
-        parameters_used={
+        "stable-diffusion-3.5-medium",
+        output_id,
+        output_path,
+        {
             "prompt": req.prompt,
             "negative_prompt": req.negative_prompt,
             "width": req.width,
@@ -379,11 +277,11 @@ def generate_sd35(req: SD35Request):
             "random_seed": req.random_seed,
             "num_images": req.num_images,
         },
-        duration_ms=int((time.perf_counter() - start) * 1000),
+        int((time.perf_counter() - start) * 1000),
     )
 
 
-@app.post("/generate/image/auraflow")
+@router.post("/generate/image/auraflow")
 def generate_auraflow(req: AuraFlowRequest):
     output_id = f"img_{uuid.uuid4().hex}.png"
     output_path = IMAGE_OUTPUT_DIR / output_id
@@ -408,10 +306,10 @@ def generate_auraflow(req: AuraFlowRequest):
         raise _map_runtime_error(exc)
 
     return _image_response(
-        model_id="auraflow-v0.3",
-        output_id=output_id,
-        output_path=output_path,
-        parameters_used={
+        "auraflow-v0.3",
+        output_id,
+        output_path,
+        {
             "prompt": req.prompt,
             "negative_prompt": req.negative_prompt,
             "width": req.width,
@@ -422,11 +320,11 @@ def generate_auraflow(req: AuraFlowRequest):
             "random_seed": req.random_seed,
             "num_images": req.num_images,
         },
-        duration_ms=int((time.perf_counter() - start) * 1000),
+        int((time.perf_counter() - start) * 1000),
     )
 
 
-@app.post("/generate/image/openflux")
+@router.post("/generate/image/openflux")
 def generate_openflux(req: OpenFluxRequest):
     output_id = f"img_{uuid.uuid4().hex}.png"
     output_path = IMAGE_OUTPUT_DIR / output_id
@@ -451,10 +349,10 @@ def generate_openflux(req: OpenFluxRequest):
         raise _map_runtime_error(exc)
 
     return _image_response(
-        model_id="openflux-1",
-        output_id=output_id,
-        output_path=output_path,
-        parameters_used={
+        "openflux-1",
+        output_id,
+        output_path,
+        {
             "prompt": req.prompt,
             "width": req.width,
             "height": req.height,
@@ -465,5 +363,5 @@ def generate_openflux(req: OpenFluxRequest):
             "max_sequence_length": req.max_sequence_length,
             "num_images": req.num_images,
         },
-        duration_ms=int((time.perf_counter() - start) * 1000),
+        int((time.perf_counter() - start) * 1000),
     )

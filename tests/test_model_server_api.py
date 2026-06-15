@@ -144,6 +144,7 @@ def test_unsupported_field_rejected(client):
 
 def test_audio_contract_rejects_arbitrary_gpu_endpoint_field(client):
     res = client.post(
+        "/generate/tts/kokoro",
         json={
             "text": "x",
             "language": "en",

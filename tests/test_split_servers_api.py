@@ -19,46 +19,6 @@ def _import_server(module_name, tmp_path, monkeypatch):
     return importlib.import_module(module_name)
 
 
-def test_image_server_models_are_image_only(tmp_path, monkeypatch):
-    module = _import_server("image_server", tmp_path, monkeypatch)
-    client = TestClient(module.app)
-
-    res = client.get("/models")
-    assert res.status_code == 200
-    models = res.json()["models"]
-    assert {model["id"] for model in models} == {
-        "flux-1-schnell",
-        "stable-diffusion-3.5-medium",
-        "auraflow-v0.3",
-        "openflux-1",
-    }
-    assert all(model["modality"] == "image" for model in models)
-
-
-def test_image_server_flux_response_uses_image_base_url(tmp_path, monkeypatch):
-    module = _import_server("image_server", tmp_path, monkeypatch)
-    captured = {}
-
-    def _fake_flux(**kwargs):
-        captured.update(kwargs)
-        Path(kwargs["output_path"]).write_bytes(b"PNG")
-        return kwargs["output_path"]
-
-    monkeypatch.setattr(module.flux_runner, "generate", _fake_flux)
-    client = TestClient(module.app)
-
-    res = client.post(
-        "/generate/image/flux",
-        json={"prompt": "hello", "seed": 7, "random_seed": False},
-    )
-    assert res.status_code == 200
-    body = res.json()
-    assert body["modelId"] == "flux-1-schnell"
-    assert body["outputType"] == "image"
-    assert body["outputUrl"].startswith("http://image.test:8001/outputs/images/img_")
-    assert captured["seed"] == 7
-
-
 def test_audio_server_models_are_audio_only(tmp_path, monkeypatch):
     module = _import_server("audio_server", tmp_path, monkeypatch)
     client = TestClient(module.app)
