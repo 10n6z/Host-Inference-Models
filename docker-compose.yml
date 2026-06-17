@@ -25,7 +25,7 @@ services:
       - "9000:9000"
     environment:
       GATEWAY_PUBLIC_BASE_URL: http://localhost:9000
-      GATEWAY_TIMEOUT_SECONDS: "600"
+      GATEWAY_TIMEOUT_SECONDS: ${GATEWAY_TIMEOUT_SECONDS:-600}
       OUTPUT_ROOT: /outputs
       # Override when Ollama runs outside compose (e.g. host systemd):
       # OLLAMA_BASE_URL=http://host.docker.internal:11434
