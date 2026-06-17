@@ -1,6 +1,7 @@
 import os
 import torch
 from diffusers import AuraFlowPipeline
+from runners.gpu_utils import has_multiple_cuda_devices, maybe_enable_multi_gpu
 
 
 class AuraFlowRunner:
@@ -18,16 +19,16 @@ class AuraFlowRunner:
         if not os.path.isdir(self.model_path):
             raise FileNotFoundError(f"AuraFlow model folder not found: {self.model_path}")
 
+        if not torch.cuda.is_available():
+            raise RuntimeError("CUDA is not available. AuraFlow needs GPU inference.")
+
         self.pipe = AuraFlowPipeline.from_pretrained(
             self.model_path,
             torch_dtype=torch.bfloat16,
             local_files_only=True,
+            **({"device_map": "balanced"} if has_multiple_cuda_devices() else {}),
         )
-
-        if torch.cuda.is_available():
-            self.pipe.enable_model_cpu_offload()
-        else:
-            raise RuntimeError("CUDA is not available. AuraFlow needs GPU inference.")
+        maybe_enable_multi_gpu(self.pipe)
 
         return self.pipe
 

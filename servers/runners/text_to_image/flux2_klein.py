@@ -1,33 +1,37 @@
 import os
 import torch
-from diffusers import FluxPipeline
-from runners.gpu_utils import has_multiple_cuda_devices, maybe_enable_multi_gpu
+from diffusers import Flux2KleinPipeline
 
 
-class FluxSchnellRunner:
+class Flux2KleinRunner:
+    """FLUX.2 [klein] 4B text-to-image runner.
+
+    Requires diffusers >= 0.39 (Flux2KleinPipeline), installed in the
+    dedicated `host-models-flux2` conda env.
+    """
+
     def __init__(self):
-        self.model_id = "black-forest-labs/FLUX.1-schnell"
+        self.model_path = os.getenv(
+            "FLUX2_KLEIN_MODEL_PATH",
+            "/gpt-lab/long/models/text-to-image/flux-2-klein-4b",
+        )
         self.pipe = None
 
     def load(self):
         if self.pipe is not None:
             return self.pipe
 
-        self.pipe = FluxPipeline.from_pretrained(
-	    os.getenv("FLUX_MODEL_PATH"),
+        if not os.path.isdir(self.model_path):
+            raise FileNotFoundError(f"FLUX.2 klein model folder not found: {self.model_path}")
+
+        self.pipe = Flux2KleinPipeline.from_pretrained(
+            self.model_path,
             torch_dtype=torch.bfloat16,
-	    local_files_only=True,
+            local_files_only=True,
         )
 
-        if has_multiple_cuda_devices():
-            self.pipe = FluxPipeline.from_pretrained(
-                os.getenv("FLUX_MODEL_PATH"),
-                torch_dtype=torch.bfloat16,
-                local_files_only=True,
-                device_map="balanced",
-            )
-        else:
-            maybe_enable_multi_gpu(self.pipe)
+        # Klein fits in ~13GB VRAM; offload keeps headroom on the shared GPU.
+        self.pipe.enable_model_cpu_offload()
 
         return self.pipe
 
@@ -38,9 +42,8 @@ class FluxSchnellRunner:
         width: int = 1024,
         height: int = 1024,
         steps: int = 4,
-        guidance_scale: float = 0.0,
+        guidance_scale: float = 1.0,
         seed: int | None = None,
-        max_sequence_length: int = 256,
         num_images: int = 1,
     ) -> str:
         pipe = self.load()
@@ -57,7 +60,6 @@ class FluxSchnellRunner:
             num_inference_steps=int(steps),
             guidance_scale=float(guidance_scale),
             generator=generator,
-            max_sequence_length=int(max_sequence_length),
             num_images_per_prompt=int(num_images),
         ).images[0]
 

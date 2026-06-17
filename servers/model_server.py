@@ -22,9 +22,12 @@ flux_runner = image.flux_runner
 sd35_runner = image.sd35_runner
 auraflow_runner = image.auraflow_runner
 openflux_runner = image.openflux_runner
+qwen_image_edit_runner = image.qwen_image_edit_runner
 kokoro_runner = audio.kokoro_runner
 stable_audio_open_runner = audio.stable_audio_open_runner
 wan_t2v_runner = video.wan_t2v_runner
+wan_t2v_14b_runner = video.wan_t2v_14b_runner
+skyreels_v2_df_13b_runner = video.skyreels_v2_df_13b_runner
 cogvideox_runner = video.cogvideox_runner
 ltx_video_runner = video.ltx_video_runner
 

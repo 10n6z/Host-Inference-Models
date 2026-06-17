@@ -33,14 +33,18 @@ class StableAudioOpenRunner:
         import torch
         from diffusers import StableAudioPipeline
 
+        from runners.gpu_utils import has_multiple_cuda_devices
+
         pipe = StableAudioPipeline.from_pretrained(
             self.model_path,
             torch_dtype=torch.float16,
             local_files_only=True,
+            **({"device_map": "balanced"} if has_multiple_cuda_devices() else {}),
         )
 
         if torch.cuda.is_available():
-            pipe = pipe.to("cuda")
+            if not has_multiple_cuda_devices():
+                pipe = pipe.to("cuda")
             self.device = "cuda"
 
         self.pipe = pipe

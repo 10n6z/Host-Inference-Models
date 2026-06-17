@@ -5,6 +5,9 @@ entry to `model_registry()`, and add a `@router.post(...)` endpoint.
 """
 from __future__ import annotations
 
+import base64
+import binascii
+import io
 import mimetypes
 import time
 import uuid
@@ -27,6 +30,7 @@ from config import (
     _run_with_timeout,
 )
 from common import (
+    APIError,
     StrictRequestModel,
     _check_output_exists,
     _field_spec,
@@ -38,6 +42,7 @@ from runners.text_to_image.auraflow import AuraFlowRunner
 from runners.text_to_image.flux_schnell import FluxSchnellRunner
 from runners.text_to_image.openflux import OpenFluxRunner
 from runners.text_to_image.sd35_medium import SD35MediumRunner
+from runners.image_to_image.qwen_image_edit import QwenImageEditRunner
 
 router = APIRouter()
 
@@ -45,6 +50,26 @@ flux_runner = FluxSchnellRunner()
 sd35_runner = SD35MediumRunner()
 auraflow_runner = AuraFlowRunner()
 openflux_runner = OpenFluxRunner()
+qwen_image_edit_runner = QwenImageEditRunner()
+
+
+def _decode_input_image(raw: str):
+    """Decode a base64 (raw or data URL) string into an RGB PIL image."""
+    from PIL import Image
+
+    payload = raw.strip()
+    if payload.startswith("data:"):
+        _, _, payload = payload.partition(",")
+    try:
+        data = base64.b64decode(payload, validate=True)
+    except (binascii.Error, ValueError) as exc:
+        raise APIError("VALIDATION_ERROR", "image: invalid base64 data.", 422) from exc
+    if not data:
+        raise APIError("VALIDATION_ERROR", "image: decoded image is empty.", 422)
+    try:
+        return Image.open(io.BytesIO(data)).convert("RGB")
+    except Exception as exc:  # noqa: BLE001
+        raise APIError("VALIDATION_ERROR", "image: could not decode image bytes.", 422) from exc
 
 
 class ImageSeedMixin(StrictRequestModel):
@@ -95,6 +120,16 @@ class OpenFluxRequest(ImageSeedMixin):
     steps: int = Field(28, ge=1, le=60)
     guidance_scale: float = Field(7.0, ge=0.0, le=20.0)
     max_sequence_length: int = Field(512, ge=1, le=512)
+    num_images: int = Field(1, ge=1, le=MAX_NUM_IMAGES)
+
+
+class QwenImageEditRequest(ImageSeedMixin):
+    prompt: str = Field(..., min_length=1, max_length=PROMPT_MAX_LENGTH)
+    image: str = Field(..., min_length=1)
+    negative_prompt: Optional[str] = Field(default=None, max_length=PROMPT_MAX_LENGTH)
+    steps: int = Field(20, ge=1, le=60)
+    true_cfg_scale: float = Field(4.0, ge=0.0, le=20.0)
+    guidance_scale: float = Field(1.0, ge=0.0, le=20.0)
     num_images: int = Field(1, ge=1, le=MAX_NUM_IMAGES)
 
 
@@ -166,6 +201,24 @@ def model_registry() -> list[dict[str, Any]]:
                 "height": _field_spec("integer", default=1024, minimum=IMAGE_MIN_SIZE, maximum=IMAGE_MAX_SIZE, step=IMAGE_SIZE_STEP),
                 "steps": _field_spec("integer", default=30, minimum=1, maximum=60),
                 "guidance_scale": _field_spec("number", default=5.0, minimum=0.0, maximum=20.0),
+                "seed": _field_spec("integer", required=False, minimum=0, maximum=MAX_SEED),
+                "random_seed": _field_spec("boolean", default=True),
+                "num_images": _field_spec("integer", default=1, minimum=1, maximum=MAX_NUM_IMAGES),
+            },
+        },
+        {
+            "id": "qwen-image-edit-2509",
+            "displayName": "Qwen-Image-Edit 2509",
+            "modality": "image",
+            "task": "image-editing",
+            "endpoint": "/generate/image/edit/qwen",
+            "fields": {
+                "prompt": _field_spec("string", required=True, max_length=PROMPT_MAX_LENGTH),
+                "image": _field_spec("image", required=True, description="Base64-encoded input image to edit."),
+                "negative_prompt": _field_spec("string", required=False, max_length=PROMPT_MAX_LENGTH),
+                "steps": _field_spec("integer", default=20, minimum=1, maximum=60),
+                "true_cfg_scale": _field_spec("number", default=4.0, minimum=0.0, maximum=20.0),
+                "guidance_scale": _field_spec("number", default=1.0, minimum=0.0, maximum=20.0),
                 "seed": _field_spec("integer", required=False, minimum=0, maximum=MAX_SEED),
                 "random_seed": _field_spec("boolean", default=True),
                 "num_images": _field_spec("integer", default=1, minimum=1, maximum=MAX_NUM_IMAGES),
@@ -315,6 +368,49 @@ def generate_auraflow(req: AuraFlowRequest):
             "width": req.width,
             "height": req.height,
             "steps": req.steps,
+            "guidance_scale": req.guidance_scale,
+            "seed": seed_used,
+            "random_seed": req.random_seed,
+            "num_images": req.num_images,
+        },
+        int((time.perf_counter() - start) * 1000),
+    )
+
+
+@router.post("/generate/image/edit/qwen")
+def generate_qwen_image_edit(req: QwenImageEditRequest):
+    output_id = f"img_{uuid.uuid4().hex}.png"
+    output_path = IMAGE_OUTPUT_DIR / output_id
+    seed_used = _resolve_seed(req.random_seed, req.seed)
+    input_image = _decode_input_image(req.image)
+    start = time.perf_counter()
+
+    try:
+        _run_with_timeout(
+            qwen_image_edit_runner.generate,
+            prompt=req.prompt,
+            images=[input_image],
+            output_path=str(output_path),
+            negative_prompt=req.negative_prompt or " ",
+            steps=req.steps,
+            true_cfg_scale=req.true_cfg_scale,
+            guidance_scale=req.guidance_scale,
+            seed=seed_used,
+            num_images=req.num_images,
+        )
+        _check_output_exists(output_path)
+    except Exception as exc:
+        raise _map_runtime_error(exc)
+
+    return _image_response(
+        "qwen-image-edit-2509",
+        output_id,
+        output_path,
+        {
+            "prompt": req.prompt,
+            "negative_prompt": req.negative_prompt,
+            "steps": req.steps,
+            "true_cfg_scale": req.true_cfg_scale,
             "guidance_scale": req.guidance_scale,
             "seed": seed_used,
             "random_seed": req.random_seed,

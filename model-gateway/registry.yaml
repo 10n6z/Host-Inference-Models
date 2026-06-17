@@ -46,6 +46,18 @@ services:
     name: ollama
     family: text-generation
     base_url: http://ollama:11434
+  flux2:
+    name: flux2
+    family: image-flux2
+    base_url: http://host.docker.internal:8011
+  framepack:
+    name: framepack
+    family: video-framepack
+    base_url: http://host.docker.internal:8012
+  magi:
+    name: magi
+    family: video-magi
+    base_url: http://host.docker.internal:8016
 models:
   "deepseek-coder:6.7b":
     display_name: "deepseek-coder:6.7b"
@@ -744,6 +756,41 @@ models:
       random_seed: { type: boolean, default: true }
       seed: { type: integer, required: false, min: 0, max: 2147483647 }
 
+  flux-2-klein-4b:
+    display_name: FLUX.2 klein 4B
+    task: image-generation
+    modality: image
+    service: flux2
+    family: image-flux2
+    endpoint: http://host.docker.internal:8011/generate/image/flux2-klein
+    mode: sync
+    fields:
+      prompt: { type: string, required: true, max_length: 4000 }
+      width: { type: integer, default: 1024, min: 512, max: 2048 }
+      height: { type: integer, default: 1024, min: 512, max: 2048 }
+      steps: { type: integer, default: 4, min: 1, max: 50 }
+      guidance_scale: { type: number, default: 1.0, min: 0.0, max: 20.0 }
+      random_seed: { type: boolean, default: true }
+      seed: { type: integer, required: false, min: 0, max: 2147483647 }
+
+  qwen-image-edit-2509:
+    display_name: Qwen-Image-Edit 2509
+    task: image-editing
+    modality: image
+    service: multimodal-legacy
+    family: image-video-legacy
+    endpoint: http://host.docker.internal:8001/generate/image/edit/qwen
+    mode: sync
+    fields:
+      prompt: { type: string, required: true, max_length: 4000 }
+      image: { type: image, required: true }
+      negative_prompt: { type: string, required: false, max_length: 4000 }
+      steps: { type: integer, default: 20, min: 1, max: 60 }
+      true_cfg_scale: { type: number, default: 4.0, min: 0.0, max: 20.0 }
+      guidance_scale: { type: number, default: 1.0, min: 0.0, max: 20.0 }
+      random_seed: { type: boolean, default: true }
+      seed: { type: integer, required: false, min: 0, max: 2147483647 }
+
   stable-diffusion-3.5-medium:
     display_name: Stable Diffusion 3.5 Medium
     task: image-generation
@@ -813,6 +860,124 @@ models:
       num_frames: { type: integer, default: 49, min: 8, max: 81 }
       num_inference_steps: { type: integer, default: 30, min: 1, max: 60 }
       guidance_scale: { type: number, default: 5.0, min: 0.0, max: 20.0 }
+      random_seed: { type: boolean, default: true }
+      seed: { type: integer, required: false, min: 0, max: 2147483647 }
+
+  magi-1-4.5b:
+    display_name: MAGI-1 4.5B
+    task: video-generation
+    modality: video
+    service: magi
+    family: video-magi
+    endpoint: http://host.docker.internal:8016/generate/video/magi
+    mode: sync
+    fields:
+      prompt: { type: string, required: true, max_length: 4000 }
+      image: { type: string, required: false }
+      num_frames: { type: integer, default: 96, min: 8, max: 192 }
+      video_size_h: { type: integer, default: 720, min: 256, max: 1024 }
+      video_size_w: { type: integer, default: 720, min: 256, max: 1024 }
+      num_steps: { type: integer, default: 64, min: 4, max: 128 }
+      cfg_number: { type: number, default: 3.0, min: 0.0, max: 20.0 }
+      window_size: { type: integer, default: 4, min: 1, max: 16 }
+      fps: { type: integer, default: 24, min: 4, max: 60 }
+      random_seed: { type: boolean, default: true }
+      seed: { type: integer, required: false, min: 0, max: 2147483647 }
+
+  framepack-i2v:
+    display_name: FramePack I2V (HunyuanVideo)
+    task: video-generation
+    modality: video
+    service: framepack
+    family: video-framepack
+    endpoint: http://host.docker.internal:8012/generate/video/framepack
+    mode: sync
+    fields:
+      prompt: { type: string, required: true, max_length: 4000 }
+      image: { type: string, required: true }
+      negative_prompt: { type: string, required: false, max_length: 4000 }
+      width: { type: integer, default: 640, min: 256, max: 1024 }
+      height: { type: integer, default: 640, min: 256, max: 1024 }
+      total_second_length: { type: number, default: 5.0, min: 1.0, max: 120.0 }
+      latent_window_size: { type: integer, default: 9, min: 1, max: 33 }
+      steps: { type: integer, default: 25, min: 1, max: 100 }
+      cfg: { type: number, default: 1.0, min: 1.0, max: 32.0 }
+      gs: { type: number, default: 10.0, min: 1.0, max: 32.0 }
+      rs: { type: number, default: 0.0, min: 0.0, max: 1.0 }
+      gpu_memory_preservation: { type: number, default: 6.0, min: 0.0, max: 128.0 }
+      use_teacache: { type: boolean, default: true }
+      mp4_crf: { type: integer, default: 16, min: 0, max: 51 }
+      random_seed: { type: boolean, default: true }
+      seed: { type: integer, required: false, min: 0, max: 2147483647 }
+
+  framepack-t2v:
+    display_name: FramePack T2V (HunyuanVideo)
+    task: video-generation
+    modality: video
+    service: framepack
+    family: video-framepack
+    endpoint: http://host.docker.internal:8012/generate/video/framepack
+    mode: sync
+    fields:
+      prompt: { type: string, required: true, max_length: 4000 }
+      image: { type: string, required: false }
+      negative_prompt: { type: string, required: false, max_length: 4000 }
+      width: { type: integer, default: 640, min: 256, max: 1024 }
+      height: { type: integer, default: 640, min: 256, max: 1024 }
+      total_second_length: { type: number, default: 5.0, min: 1.0, max: 120.0 }
+      latent_window_size: { type: integer, default: 9, min: 1, max: 33 }
+      steps: { type: integer, default: 25, min: 1, max: 100 }
+      cfg: { type: number, default: 1.0, min: 1.0, max: 32.0 }
+      gs: { type: number, default: 10.0, min: 1.0, max: 32.0 }
+      rs: { type: number, default: 0.0, min: 0.0, max: 1.0 }
+      gpu_memory_preservation: { type: number, default: 6.0, min: 0.0, max: 128.0 }
+      use_teacache: { type: boolean, default: true }
+      mp4_crf: { type: integer, default: 16, min: 0, max: 51 }
+      random_seed: { type: boolean, default: true }
+      seed: { type: integer, required: false, min: 0, max: 2147483647 }
+
+  wan21-t2v-14b:
+    display_name: Wan2.1 T2V 14B
+    task: video-generation
+    modality: video
+    service: multimodal-legacy
+    family: image-video-legacy
+    endpoint: http://host.docker.internal:8001/generate/video/wan-14b
+    mode: sync
+    fields:
+      prompt: { type: string, required: true, max_length: 4000 }
+      negative_prompt: { type: string, required: false, max_length: 4000 }
+      width: { type: integer, default: 832, min: 256, max: 1024 }
+      height: { type: integer, default: 480, min: 256, max: 1024 }
+      num_frames: { type: integer, default: 81, min: 8, max: 81 }
+      num_inference_steps: { type: integer, default: 50, min: 1, max: 60 }
+      guidance_scale: { type: number, default: 5.0, min: 0.0, max: 20.0 }
+      shift: { type: number, default: 5.0, min: 0.0, max: 12.0 }
+      random_seed: { type: boolean, default: true }
+      seed: { type: integer, required: false, min: 0, max: 2147483647 }
+
+  skyreels-v2-df-1.3b-540p:
+    display_name: SkyReels V2 DF 1.3B 540P
+    task: video-generation
+    modality: video
+    service: multimodal-legacy
+    family: image-video-legacy
+    endpoint: http://host.docker.internal:8001/generate/video/skyreels-v2-df-1.3b-540p
+    mode: sync
+    fields:
+      prompt: { type: string, required: true, max_length: 4000 }
+      negative_prompt: { type: string, required: false, max_length: 4000 }
+      width: { type: integer, default: 960, min: 256, max: 1024 }
+      height: { type: integer, default: 544, min: 256, max: 1024 }
+      num_frames: { type: integer, default: 97, min: 8, max: 257 }
+      base_num_frames: { type: integer, default: 97, min: 8, max: 121 }
+      num_inference_steps: { type: integer, default: 30, min: 1, max: 60 }
+      guidance_scale: { type: number, default: 6.0, min: 0.0, max: 20.0 }
+      shift: { type: number, default: 8.0, min: 0.0, max: 12.0 }
+      ar_step: { type: integer, default: 0, min: 0, max: 20 }
+      causal_block_size: { type: integer, default: 1, min: 1, max: 10 }
+      overlap_history: { type: integer, required: false, min: 0, max: 64 }
+      addnoise_condition: { type: number, default: 20.0, min: 0.0, max: 50.0 }
       random_seed: { type: boolean, default: true }
       seed: { type: integer, required: false, min: 0, max: 2147483647 }
 
