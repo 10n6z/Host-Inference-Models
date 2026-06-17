@@ -5,7 +5,7 @@ set -e
 source ~/miniconda3/etc/profile.d/conda.sh
 conda activate host-framepack
 
-export CUDA_VISIBLE_DEVICES="${CUDA_VISIBLE_DEVICES:-all}"
+export CUDA_VISIBLE_DEVICES="${CUDA_VISIBLE_DEVICES:-2}"
 export OUTPUT_ROOT="${OUTPUT_ROOT:-/gpt-lab/long/outputs}"
 export HF_HOME="${HF_HOME:-/gpt-lab/long/hf-cache}"
 export HF_HUB_CACHE="${HF_HUB_CACHE:-/gpt-lab/long/hf-cache/hub}"
