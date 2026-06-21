@@ -500,14 +500,18 @@ def _test_melotts():
     result = runner.generate(
         text=SMOKE_TEXT,
         output_path=out_path,
+        language="EN",
+        speaker="EN-US",
         speed=1.1,
-        speaker_id=0,
     )
     params = result.get("parameters", {})
     assert params.get("speed") == 1.1, \
         f"speed mismatch: got {params.get('speed')}"
-    assert params.get("speaker_id") == 0
-    print(f"  params: speed=1.1, speaker_id=0")
+    assert params.get("language") == "EN"
+    assert params.get("speaker") == "EN-US"
+    speakers = runner.list_speakers("EN")
+    assert "EN-US" in speakers, f"EN-US missing from speakers: {speakers}"
+    print(f"  params: language=EN, speaker=EN-US, speed=1.1; speakers={speakers}")
     return result
 
 
