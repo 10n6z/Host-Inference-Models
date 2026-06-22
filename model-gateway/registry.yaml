@@ -1129,6 +1129,7 @@ models:
       voice_preset: { type: string, default: v2/en_speaker_6 }
       do_sample: { type: boolean, default: true }
       temperature: { type: number, min: 0.0, max: 2.0 }
+      seed: { type: integer, min: 0, max: 4294967295 }
       format: { type: string, default: wav, enum: [wav] }
 
   bark-full:
@@ -1142,6 +1143,7 @@ models:
       voice_preset: { type: string, default: v2/en_speaker_6 }
       do_sample: { type: boolean, default: true }
       temperature: { type: number, min: 0.0, max: 2.0 }
+      seed: { type: integer, min: 0, max: 4294967295 }
       format: { type: string, default: wav, enum: [wav] }
 
   espnet-vits:

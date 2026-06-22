@@ -29,6 +29,7 @@ _BARK_FIELDS = {
     "voice_preset": {"type": "string", "default": "v2/en_speaker_6"},
     "do_sample": {"type": "boolean", "default": True},
     "temperature": {"type": "number", "min": 0.0, "max": 2.0},
+    "seed": {"type": "integer", "min": 0, "max": 4294967295},
     "format": {"type": "string", "default": "wav", "enum": ["wav"]},
 }
 
@@ -54,6 +55,8 @@ class BarkParams(BaseModel):
     voice_preset: str = Field("v2/en_speaker_6", max_length=100)
     do_sample: bool = Field(True)
     temperature: Optional[float] = Field(None, ge=0.0, le=2.0)
+    # Optional fixed seed for reproducible output; omit for a random take.
+    seed: Optional[int] = Field(None, ge=0, le=4294967295)
     format: str = Field("wav", pattern=WAV_ONLY_PATTERN)
 
 
@@ -69,6 +72,7 @@ def _generate(runner: BarkRunner, model_id: str, prefix: str, **params) -> dict:
         voice_preset=req.voice_preset,
         do_sample=req.do_sample,
         temperature=req.temperature,
+        seed=req.seed,
     )
     ensure_output_exists(output_path)
     return audio_response(
@@ -82,6 +86,7 @@ def _generate(runner: BarkRunner, model_id: str, prefix: str, **params) -> dict:
             "voice_preset": req.voice_preset,
             "do_sample": req.do_sample,
             "temperature": req.temperature,
+            "seed": req.seed,
             "format": format_normalized,
         },
         audio_meta=audio_meta,

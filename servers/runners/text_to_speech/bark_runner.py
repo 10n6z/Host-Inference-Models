@@ -44,6 +44,16 @@ class BarkRunner:
         self.sample_rate = SAMPLE_RATE
         self._loaded = True
 
+    @staticmethod
+    def _seed_all(seed: int) -> None:
+        import random
+
+        random.seed(seed)
+        np.random.seed(seed)
+        torch.manual_seed(seed)
+        if torch.cuda.is_available():
+            torch.cuda.manual_seed_all(seed)
+
     def generate(
         self,
         *,
@@ -52,10 +62,14 @@ class BarkRunner:
         voice_preset: str = "v2/en_speaker_6",
         do_sample: bool = True,
         temperature: float | None = None,
+        seed: int | None = None,
         **kwargs,
     ) -> dict:
         self.load()
         from bark import generate_audio
+
+        if seed is not None:
+            self._seed_all(int(seed))
 
         history_prompt = voice_preset or None  # empty/falsy = Unconditional (random voice)
         temp = 1.0 if temperature is None else float(temperature)
@@ -77,5 +91,6 @@ class BarkRunner:
                 "voice_preset": voice_preset,
                 "do_sample": do_sample,
                 "temperature": temp,
+                "seed": int(seed) if seed is not None else None,
             },
         }
