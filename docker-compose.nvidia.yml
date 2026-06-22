@@ -40,7 +40,7 @@ services:
     runtime: nvidia
     environment:
       DEVICE: cuda
-      NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_VISIBLE_DEVICES: "3"
 
   audio-chatterbox:
     runtime: nvidia
