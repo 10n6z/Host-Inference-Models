@@ -34,6 +34,7 @@ def test_upload_audio_accepts_wav(monkeypatch, tmp_path):
     assert body["path"].endswith(".wav")
     assert "/outputs/uploads/" in body["url"]
     assert Path(body["path"]).exists()
+    assert Path(body["path"]).name.startswith("ref_")
 
 
 def test_upload_audio_rejects_mp3(monkeypatch, tmp_path):

@@ -430,6 +430,14 @@ ALLOWED_REF_AUDIO_EXT = {".wav", ".flac"}
 @app.post("/uploads/audio")
 async def upload_audio(request: Request, file: UploadFile = File(...)):
     """Store a reference-audio clip for voice cloning; return its path + URL."""
+    if not file.filename:
+        return JSONResponse(
+            status_code=400,
+            content={
+                "success": False,
+                "error": {"code": "MISSING_FILENAME", "message": "Uploaded file is missing a filename.", "details": None},
+            },
+        )
     ext = Path(file.filename or "").suffix.lower()
     if ext not in ALLOWED_REF_AUDIO_EXT:
         return JSONResponse(
