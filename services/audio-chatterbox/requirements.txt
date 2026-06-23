@@ -11,3 +11,6 @@ soundfile==0.13.1
 torch==2.6.0
 torchaudio==2.6.0
 chatterbox-tts==0.1.7
+
+# Remote Chatterbox Spaces via gradio_client (matches gradio==6.8.0 pulled by chatterbox-tts)
+gradio_client==2.2.0

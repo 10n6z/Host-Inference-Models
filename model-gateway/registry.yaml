@@ -1167,8 +1167,50 @@ models:
     endpoint: http://audio-chatterbox:8107/generate
     fields:
       text: { type: string, required: true, max_length: 12000 }
+      audio_prompt_path: { type: string, required: false }
       exaggeration: { type: number, default: 0.5, min: 0.0, max: 2.0 }
       cfg_weight: { type: number, default: 0.5, min: 0.0, max: 2.0 }
+      temperature: { type: number, default: 0.8, min: 0.05, max: 5.0 }
+      min_p: { type: number, default: 0.05, min: 0.0, max: 1.0 }
+      top_p: { type: number, default: 1.0, min: 0.0, max: 1.0 }
+      repetition_penalty: { type: number, default: 1.2, min: 1.0, max: 2.0 }
+      seed_num: { type: integer, default: 0, min: 0 }
+      norm_loudness: { type: boolean, default: false }
+      format: { type: string, default: wav, enum: [wav] }
+
+  chatterbox-multilingual:
+    display_name: Chatterbox Multilingual TTS V3
+    modality: text-to-speech
+    service: audio-chatterbox
+    family: audio-chatterbox
+    endpoint: http://audio-chatterbox:8107/generate
+    fields:
+      text: { type: string, required: true, max_length: 300 }
+      language_id: { type: string, default: en, enum: [en, ar, da, de, el, es, fi, fr, he, hi, it, ja, ko, ms, nl, no, pl, pt, ru, sv, sw, tr, zh] }
+      audio_prompt_path: { type: string, required: false }
+      exaggeration: { type: number, default: 0.5, min: 0.0, max: 2.0 }
+      temperature: { type: number, default: 0.8, min: 0.05, max: 5.0 }
+      seed_num: { type: integer, default: 0, min: 0 }
+      cfg_weight: { type: number, default: 0.5, min: 0.0, max: 2.0 }
+      format: { type: string, default: wav, enum: [wav] }
+
+  chatterbox-turbo:
+    display_name: Chatterbox Turbo TTS
+    modality: text-to-speech
+    service: audio-chatterbox
+    family: audio-chatterbox
+    endpoint: http://audio-chatterbox:8107/generate
+    # Supports inline event tags in text: [clear throat] [sigh] [shush] [cough] [groan] [sniff] [gasp] [chuckle] [laugh]
+    fields:
+      text: { type: string, required: true, max_length: 300 }
+      audio_prompt_path: { type: string, required: false }
+      temperature: { type: number, default: 0.8, min: 0.05, max: 2.0 }
+      seed_num: { type: integer, default: 0, min: 0 }
+      min_p: { type: number, default: 0.0, min: 0.0, max: 1.0 }
+      top_p: { type: number, default: 0.95, min: 0.0, max: 1.0 }
+      top_k: { type: integer, default: 1000, min: 0, max: 1000 }
+      repetition_penalty: { type: number, default: 1.2, min: 1.0, max: 2.0 }
+      norm_loudness: { type: boolean, default: true }
       format: { type: string, default: wav, enum: [wav] }
 
   f5-tts:

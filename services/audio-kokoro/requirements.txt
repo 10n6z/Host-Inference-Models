@@ -13,7 +13,9 @@ torchaudio==2.6.0
 transformers==4.46.3
 
 kokoro==0.9.4
-misaki==0.9.4
+misaki[en,ja,zh]==0.9.4
+ordered-set==4.1.0
+unidic-lite==1.0.8
 onnxruntime==1.26.0
 onnx==1.21.0
 

@@ -111,6 +111,16 @@ def get_test_registry():
         None,
     ))
     registry.append((
+        "ResembleAI--chatterbox-multilingual",
+        lambda: _test_chatterbox_multilingual(),
+        None,
+    ))
+    registry.append((
+        "ResembleAI--chatterbox-turbo",
+        lambda: _test_chatterbox_turbo(),
+        None,
+    ))
+    registry.append((
         "SWivid--F5-TTS",
         lambda: _test_f5_tts(),
         None,
@@ -404,12 +414,66 @@ def _test_chatterbox():
         output_path=out_path,
         exaggeration=0.7,
         cfg_weight=0.3,
+        temperature=0.6,
+        min_p=0.1,
+        top_p=0.95,
+        repetition_penalty=1.3,
+        seed_num=42,
+        norm_loudness=True,
     )
     params = result.get("parameters", {})
     assert params.get("exaggeration") == 0.7, \
         f"exaggeration mismatch: got {params.get('exaggeration')}"
     assert params.get("cfg_weight") == 0.3
-    print(f"  params: exaggeration=0.7, cfg_weight=0.3")
+    assert params.get("temperature") == 0.6
+    assert params.get("seed_num") == 42
+    assert params.get("norm_loudness") is True
+    print(f"  params: exaggeration=0.7, cfg_weight=0.3, temperature=0.6, seed=42, norm_loudness=True")
+    return result
+
+
+def _test_chatterbox_multilingual():
+    sys.path.insert(0, str(Path(__file__).parent / "servers"))
+    from runners.text_to_speech.chatterbox_multilingual_runner import ChatterboxMultilingualRunner
+
+    runner = ChatterboxMultilingualRunner()
+    out_path = str(OUTPUT_DIR / "chatterbox_multilingual.wav")
+    result = runner.generate(
+        text="Bonjour, ceci est un test multilingue.",
+        output_path=out_path,
+        language_id="fr",
+        temperature=0.7,
+        seed_num=42,
+        cfg_weight=0.5,
+        exaggeration=0.6,
+    )
+    params = result.get("parameters", {})
+    assert params.get("language_id") == "fr", \
+        f"language_id mismatch: got {params.get('language_id')}"
+    assert params.get("seed_num") == 42
+    print(f"  params: language_id=fr, temperature=0.7, seed=42 (remote Space)")
+    return result
+
+
+def _test_chatterbox_turbo():
+    sys.path.insert(0, str(Path(__file__).parent / "servers"))
+    from runners.text_to_speech.chatterbox_turbo_runner import ChatterboxTurboRunner
+
+    runner = ChatterboxTurboRunner()
+    out_path = str(OUTPUT_DIR / "chatterbox_turbo.wav")
+    result = runner.generate(
+        text="Oh, that is hilarious! [chuckle] Anyway, let me check the prices.",
+        output_path=out_path,
+        temperature=0.8,
+        seed_num=42,
+        top_p=0.95,
+        top_k=1000,
+        norm_loudness=True,
+    )
+    params = result.get("parameters", {})
+    assert params.get("seed_num") == 42
+    assert params.get("top_k") == 1000
+    print(f"  params: temperature=0.8, seed=42, top_k=1000, tags=[chuckle] (remote Space)")
     return result
 
 
