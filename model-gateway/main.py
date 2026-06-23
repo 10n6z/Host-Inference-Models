@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import os
+import shutil
 import sys
 import time
 import uuid
@@ -11,7 +12,7 @@ from typing import Any, Optional
 import httpx
 import yaml
 from dotenv import load_dotenv
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, File, Request, UploadFile
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -421,6 +422,35 @@ async def generate(request: Request):
         }
         return JSONResponse(status_code=202, content=success_payload)
     return JSONResponse(status_code=200, content=success_payload)
+
+
+ALLOWED_REF_AUDIO_EXT = {".wav", ".flac"}
+
+
+@app.post("/uploads/audio")
+async def upload_audio(request: Request, file: UploadFile = File(...)):
+    """Store a reference-audio clip for voice cloning; return its path + URL."""
+    ext = Path(file.filename or "").suffix.lower()
+    if ext not in ALLOWED_REF_AUDIO_EXT:
+        return JSONResponse(
+            status_code=415,
+            content={
+                "success": False,
+                "error": {
+                    "code": "UNSUPPORTED_MEDIA_TYPE",
+                    "message": "Only .wav or .flac reference audio is accepted.",
+                    "details": None,
+                },
+            },
+        )
+    uploads_dir = OUTPUT_ROOT / "uploads"
+    uploads_dir.mkdir(parents=True, exist_ok=True)
+    stored_name = f"ref_{uuid.uuid4().hex}{ext}"
+    dest = uploads_dir / stored_name
+    with dest.open("wb") as out:
+        shutil.copyfileobj(file.file, out)
+    public_base = _gateway_public_base_from_request(request)
+    return {"path": str(dest), "url": f"{public_base}/outputs/uploads/{stored_name}"}
 
 
 @app.get("/jobs/{job_id}")
