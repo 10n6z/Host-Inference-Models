@@ -26,6 +26,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /install /usr/local
+RUN python -m unidic download
 
 COPY servers/ /app/servers/
 COPY services/common/ /app/services/common/
