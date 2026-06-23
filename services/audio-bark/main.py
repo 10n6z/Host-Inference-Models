@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import uuid
+from typing import Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -20,136 +21,84 @@ WAV_ONLY_PATTERN = "^(wav)$"
 bark_runner = BarkRunner(variant="small")
 bark_full_runner = BarkRunner(variant="full")
 
+# Bark follows the suno/bark model card: by default it runs
+# model.generate(**inputs, do_sample=True) with the model's tuned config.
+# `temperature` is an optional override applied to every Bark stage.
+_BARK_FIELDS = {
+    "text": {"type": "string", "required": True, "max_length": TTS_TEXT_MAX_LENGTH},
+    "voice_preset": {"type": "string", "default": "v2/en_speaker_6"},
+    "do_sample": {"type": "boolean", "default": True},
+    "temperature": {"type": "number", "min": 0.0, "max": 2.0},
+    "seed": {"type": "integer", "min": 0, "max": 4294967295},
+    "format": {"type": "string", "default": "wav", "enum": ["wav"]},
+}
+
 SUPPORTED_MODELS = {
     "bark-small": {
         "display_name": "Bark Small",
         "modality": "text-to-speech",
-        "fields": {
-            "text": {"type": "string", "required": True, "max_length": TTS_TEXT_MAX_LENGTH},
-            "voice_preset": {"type": "string", "default": "v2/en_speaker_6"},
-            "do_sample": {"type": "boolean", "default": True},
-            "temperature": {"type": "number", "default": 1.0, "min": 0.0, "max": 2.0},
-            "semantic_temperature": {"type": "number", "default": 1.0, "min": 0.0, "max": 2.0},
-            "coarse_temperature": {"type": "number", "default": 1.0, "min": 0.0, "max": 2.0},
-            "fine_temperature": {"type": "number", "default": 1.0, "min": 0.0, "max": 2.0},
-            "semantic_max_new_tokens": {"type": "integer", "default": 768, "min": 1, "max": 2048},
-            "coarse_max_new_tokens": {"type": "integer", "default": 1536, "min": 1, "max": 4096},
-            "fine_max_new_tokens": {"type": "integer", "default": 1536, "min": 1, "max": 4096},
-            "format": {"type": "string", "default": "wav", "enum": ["wav"]},
-        },
+        "fields": _BARK_FIELDS,
     },
     "bark-full": {
         "display_name": "Bark Full",
         "modality": "text-to-speech",
-        "fields": {
-            "text": {"type": "string", "required": True, "max_length": TTS_TEXT_MAX_LENGTH},
-            "voice_preset": {"type": "string", "default": "v2/en_speaker_6"},
-            "do_sample": {"type": "boolean", "default": True},
-            "temperature": {"type": "number", "default": 1.0, "min": 0.0, "max": 2.0},
-            "format": {"type": "string", "default": "wav", "enum": ["wav"]},
-        },
+        "fields": _BARK_FIELDS,
     },
 }
 
 
-class BarkSmallParams(BaseModel):
+class BarkParams(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     text: str = Field(..., min_length=1, max_length=TTS_TEXT_MAX_LENGTH)
-    voice_preset: str = Field("v2/en_speaker_6", min_length=1, max_length=100)
+    # Empty string is allowed: it means Unconditional (no acoustic prompt).
+    voice_preset: str = Field("v2/en_speaker_6", max_length=100)
     do_sample: bool = Field(True)
-    temperature: float = Field(1.0, ge=0.0, le=2.0)
-    semantic_temperature: float = Field(1.0, ge=0.0, le=2.0)
-    coarse_temperature: float = Field(1.0, ge=0.0, le=2.0)
-    fine_temperature: float = Field(1.0, ge=0.0, le=2.0)
-    semantic_max_new_tokens: int = Field(768, ge=1, le=2048)
-    coarse_max_new_tokens: int = Field(1536, ge=1, le=4096)
-    fine_max_new_tokens: int = Field(1536, ge=1, le=4096)
+    temperature: Optional[float] = Field(None, ge=0.0, le=2.0)
+    # Optional fixed seed for reproducible output; omit for a random take.
+    seed: Optional[int] = Field(None, ge=0, le=4294967295)
     format: str = Field("wav", pattern=WAV_ONLY_PATTERN)
 
 
-class BarkFullParams(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+def _generate(runner: BarkRunner, model_id: str, prefix: str, **params) -> dict:
+    req = BarkParams.model_validate(params)
+    format_normalized = req.format.lower()
+    output_id = f"{prefix}_{uuid.uuid4().hex}.{format_normalized}"
+    output_path = AUDIO_OUTPUT_DIR / output_id
 
-    text: str = Field(..., min_length=1, max_length=TTS_TEXT_MAX_LENGTH)
-    voice_preset: str = Field("v2/en_speaker_6", min_length=1, max_length=100)
-    do_sample: bool = Field(True)
-    temperature: float = Field(1.0, ge=0.0, le=2.0)
-    format: str = Field("wav", pattern=WAV_ONLY_PATTERN)
+    audio_meta = runner.generate(
+        text=req.text,
+        output_path=str(output_path),
+        voice_preset=req.voice_preset,
+        do_sample=req.do_sample,
+        temperature=req.temperature,
+        seed=req.seed,
+    )
+    ensure_output_exists(output_path)
+    return audio_response(
+        model_id=model_id,
+        modality="text-to-speech",
+        audio_kind="tts",
+        output_id=output_id,
+        output_path=output_path,
+        parameters_used={
+            "text": req.text,
+            "voice_preset": req.voice_preset,
+            "do_sample": req.do_sample,
+            "temperature": req.temperature,
+            "seed": req.seed,
+            "format": format_normalized,
+        },
+        audio_meta=audio_meta,
+    )
 
 
 def _generate_bark_small(**params) -> dict:
-    req = BarkSmallParams.model_validate(params)
-    format_normalized = req.format.lower()
-    output_id = f"bark_{uuid.uuid4().hex}.{format_normalized}"
-    output_path = AUDIO_OUTPUT_DIR / output_id
-
-    audio_meta = bark_runner.generate(
-        text=req.text,
-        output_path=str(output_path),
-        voice_preset=req.voice_preset,
-        do_sample=req.do_sample,
-        temperature=req.temperature,
-        semantic_temperature=req.semantic_temperature,
-        coarse_temperature=req.coarse_temperature,
-        fine_temperature=req.fine_temperature,
-        semantic_max_new_tokens=req.semantic_max_new_tokens,
-        coarse_max_new_tokens=req.coarse_max_new_tokens,
-        fine_max_new_tokens=req.fine_max_new_tokens,
-    )
-    ensure_output_exists(output_path)
-    return audio_response(
-        model_id="bark-small",
-        modality="text-to-speech",
-        audio_kind="tts",
-        output_id=output_id,
-        output_path=output_path,
-        parameters_used={
-            "text": req.text,
-            "voice_preset": req.voice_preset,
-            "do_sample": req.do_sample,
-            "temperature": req.temperature,
-            "semantic_temperature": req.semantic_temperature,
-            "coarse_temperature": req.coarse_temperature,
-            "fine_temperature": req.fine_temperature,
-            "semantic_max_new_tokens": req.semantic_max_new_tokens,
-            "coarse_max_new_tokens": req.coarse_max_new_tokens,
-            "fine_max_new_tokens": req.fine_max_new_tokens,
-            "format": format_normalized,
-        },
-        audio_meta=audio_meta,
-    )
+    return _generate(bark_runner, "bark-small", "bark", **params)
 
 
 def _generate_bark_full(**params) -> dict:
-    req = BarkFullParams.model_validate(params)
-    format_normalized = req.format.lower()
-    output_id = f"bark_full_{uuid.uuid4().hex}.{format_normalized}"
-    output_path = AUDIO_OUTPUT_DIR / output_id
-
-    audio_meta = bark_full_runner.generate(
-        text=req.text,
-        output_path=str(output_path),
-        voice_preset=req.voice_preset,
-        do_sample=req.do_sample,
-        temperature=req.temperature,
-    )
-    ensure_output_exists(output_path)
-    return audio_response(
-        model_id="bark-full",
-        modality="text-to-speech",
-        audio_kind="tts",
-        output_id=output_id,
-        output_path=output_path,
-        parameters_used={
-            "text": req.text,
-            "voice_preset": req.voice_preset,
-            "do_sample": req.do_sample,
-            "temperature": req.temperature,
-            "format": format_normalized,
-        },
-        audio_meta=audio_meta,
-    )
+    return _generate(bark_full_runner, "bark-full", "bark_full", **params)
 
 
 app = create_audio_family_app(

@@ -1130,13 +1130,8 @@ models:
       text: { type: string, required: true, max_length: 12000 }
       voice_preset: { type: string, default: v2/en_speaker_6 }
       do_sample: { type: boolean, default: true }
-      temperature: { type: number, default: 1.0, min: 0.0, max: 2.0 }
-      semantic_temperature: { type: number, default: 1.0, min: 0.0, max: 2.0 }
-      coarse_temperature: { type: number, default: 1.0, min: 0.0, max: 2.0 }
-      fine_temperature: { type: number, default: 1.0, min: 0.0, max: 2.0 }
-      semantic_max_new_tokens: { type: integer, default: 768, min: 1, max: 2048 }
-      coarse_max_new_tokens: { type: integer, default: 1536, min: 1, max: 4096 }
-      fine_max_new_tokens: { type: integer, default: 1536, min: 1, max: 4096 }
+      temperature: { type: number, min: 0.0, max: 2.0 }
+      seed: { type: integer, min: 0, max: 4294967295 }
       format: { type: string, default: wav, enum: [wav] }
 
   bark-full:
@@ -1149,7 +1144,8 @@ models:
       text: { type: string, required: true, max_length: 12000 }
       voice_preset: { type: string, default: v2/en_speaker_6 }
       do_sample: { type: boolean, default: true }
-      temperature: { type: number, default: 1.0, min: 0.0, max: 2.0 }
+      temperature: { type: number, min: 0.0, max: 2.0 }
+      seed: { type: integer, min: 0, max: 4294967295 }
       format: { type: string, default: wav, enum: [wav] }
 
   espnet-vits:
