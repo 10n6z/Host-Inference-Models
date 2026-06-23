@@ -1073,6 +1073,8 @@ models:
       temperature: { type: number, default: 0.1, min: 0.0, max: 2.0 }
       repetition_penalty: { type: number, default: 1.1, min: 1.0, max: 3.0 }
       max_length: { type: integer, default: 4096, min: 256, max: 8192 }
+      ref_audio_path: { type: string, default: "", max_length: 500 }
+      ref_text: { type: string, default: "", max_length: 12000 }
       format: { type: string, default: wav, enum: [wav] }
 
   stable-audio-open-1.0:

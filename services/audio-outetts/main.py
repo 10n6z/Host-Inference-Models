@@ -32,6 +32,8 @@ SUPPORTED_MODELS = {
             "temperature": {"type": "number", "default": 0.1, "min": 0.0, "max": 2.0},
             "repetition_penalty": {"type": "number", "default": 1.1, "min": 1.0, "max": 3.0},
             "max_length": {"type": "integer", "default": 4096, "min": 256, "max": 8192},
+            "ref_audio_path": {"type": "string", "default": ""},
+            "ref_text": {"type": "string", "default": "", "max_length": TTS_TEXT_MAX_LENGTH},
             "format": {"type": "string", "default": "wav", "enum": ["wav"]},
         },
     },
@@ -46,6 +48,8 @@ class OuteTTSParams(BaseModel):
     temperature: float = Field(0.1, ge=0.0, le=2.0)
     repetition_penalty: float = Field(1.1, ge=1.0, le=3.0)
     max_length: int = Field(4096, ge=256, le=8192)
+    ref_audio_path: str = Field("", max_length=500)
+    ref_text: str = Field("", max_length=TTS_TEXT_MAX_LENGTH)
     format: str = Field("wav", pattern=WAV_ONLY_PATTERN)
 
 
@@ -64,6 +68,8 @@ def _generate_outetts(**params) -> dict:
         temperature=req.temperature,
         repetition_penalty=req.repetition_penalty,
         max_length=req.max_length,
+        ref_audio_path=req.ref_audio_path or None,
+        ref_text=req.ref_text or None,
     )
     ensure_output_exists(output_path)
     return audio_response(

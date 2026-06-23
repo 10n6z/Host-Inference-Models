@@ -56,28 +56,38 @@ class OuteTTSRunner:
         temperature: float = 0.1,
         repetition_penalty: float = 1.1,
         max_length: int = 4096,
+        ref_audio_path: str | None = None,
+        ref_text: str | None = None,
         **kwargs,
     ) -> dict:
         self.load()
         import outetts
+
+        speaker = None
+        cloned = False
+        if ref_audio_path and os.path.exists(ref_audio_path):
+            if ref_text:
+                speaker = self.interface.create_speaker(ref_audio_path, ref_text)
+            else:
+                speaker = self.interface.create_speaker(ref_audio_path)
+            cloned = True
 
         if hasattr(outetts, "GenerationConfig"):
             sampler = outetts.SamplerConfig(
                 temperature=temperature,
                 repetition_penalty=repetition_penalty,
             )
-            gen_config = outetts.GenerationConfig(
-                text=text,
-                sampler_config=sampler,
-                max_length=max_length,
-            )
-            output = self.interface.generate(gen_config)
+            gen_kwargs = dict(text=text, sampler_config=sampler, max_length=max_length)
+            if speaker is not None:
+                gen_kwargs["speaker"] = speaker
+            output = self.interface.generate(outetts.GenerationConfig(**gen_kwargs))
         else:
             output = self.interface.generate(
                 text=text,
                 temperature=temperature,
                 repetition_penalty=repetition_penalty,
                 max_length=max_length,
+                speaker=speaker,
             )
         output.save(output_path)
 
@@ -91,5 +101,6 @@ class OuteTTSRunner:
                 "temperature": temperature,
                 "repetition_penalty": repetition_penalty,
                 "max_length": max_length,
+                "cloned": cloned,
             },
         }
