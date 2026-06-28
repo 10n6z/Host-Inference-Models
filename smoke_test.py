@@ -451,7 +451,7 @@ def _test_chatterbox_multilingual():
     assert params.get("language_id") == "fr", \
         f"language_id mismatch: got {params.get('language_id')}"
     assert params.get("seed_num") == 42
-    print(f"  params: language_id=fr, temperature=0.7, seed=42 (remote Space)")
+    print(f"  params: language_id=fr, temperature=0.7, seed=42 (local Chatterbox)")
     return result
 
 
@@ -473,7 +473,7 @@ def _test_chatterbox_turbo():
     params = result.get("parameters", {})
     assert params.get("seed_num") == 42
     assert params.get("top_k") == 1000
-    print(f"  params: temperature=0.8, seed=42, top_k=1000, tags=[chuckle] (remote Space)")
+    print(f"  params: temperature=0.8, seed=42, top_k=1000, tags=[chuckle] (local Chatterbox)")
     return result
 
 
