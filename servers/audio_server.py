@@ -65,6 +65,8 @@ from runners.text_to_speech.e2_tts_runner import E2TTSRunner
 from runners.text_to_speech.f5_tts_runner import F5TTSRunner
 from runners.text_to_speech.kitten_tts_runner import KittenTTSRunner
 from runners.text_to_speech.mms_tts_runner import MMSTTSRunner
+from runners.text_to_speech.vits_ljs_runner import VITSLJSRunner
+from runners.speech_to_text.whisper_runner import DistilWhisperLargeV3Runner, WhisperLargeV3Runner
 from runners.text_to_speech.speecht5_runner import SpeechT5Runner
 
 TTS_TEXT_MAX_LENGTH = 12000
@@ -88,6 +90,9 @@ speecht5_runner = SpeechT5Runner()
 f5_tts_runner = F5TTSRunner()
 e2_tts_runner = E2TTSRunner()
 kitten_tts_runner = KittenTTSRunner()
+vits_ljs_runner = VITSLJSRunner()
+whisper_large_v3_runner = WhisperLargeV3Runner()
+distil_whisper_large_v3_runner = DistilWhisperLargeV3Runner()
 
 
 class StableAudioRequest(StrictRequestModel):
@@ -143,6 +148,24 @@ class KittenTTSRequest(StrictRequestModel):
     voice: str = Field("expr-voice-2-m", min_length=1, max_length=100)
     speed: float = Field(1.0, ge=0.5, le=3.0)
     format: str = Field("wav", pattern=WAV_ONLY_PATTERN)
+
+
+class VITSLJSRequest(StrictRequestModel):
+    text: str = Field(..., min_length=1, max_length=TTS_TEXT_MAX_LENGTH)
+    format: str = Field("wav", pattern=WAV_ONLY_PATTERN)
+
+
+class WhisperASRRequest(StrictRequestModel):
+    audio: str = Field(..., min_length=1)
+    language: Optional[str] = Field(default=None, max_length=8)
+    task: str = Field("transcribe", pattern="^(transcribe|translate)$")
+    format: str = Field("json", pattern="^(json)$")
+
+
+class DistilWhisperASRRequest(StrictRequestModel):
+    audio: str = Field(..., min_length=1)
+    language: Optional[str] = Field(default=None, max_length=8)
+    format: str = Field("json", pattern="^(json)$")
 
 
 def _model_registry() -> list[dict[str, Any]]:
@@ -267,6 +290,24 @@ def _safe_error_message(exc: Exception) -> str:
 def _map_tts_runtime_error(exc: Exception) -> APIError:
     logger.exception("TTS generation failed")
     return APIError("TTS_GENERATION_FAILED", _safe_error_message(exc), 500)
+
+
+def _asr_response(*, model_id: str, transcript: dict[str, Any], parameters_used: dict[str, Any], duration_ms: int) -> dict[str, Any]:
+    return {
+        "success": True,
+        "status": "completed",
+        "modelId": model_id,
+        "model_id": model_id,
+        "modality": "speech-to-text",
+        "outputType": "text",
+        "transcript": transcript.get("text", ""),
+        "text": transcript.get("text", ""),
+        "language": transcript.get("language"),
+        "task": transcript.get("task"),
+        "parameters_used": parameters_used,
+        "duration_ms": duration_ms,
+        "created_at": _utc_now_iso(),
+    }
 
 
 def _audio_response(
@@ -598,4 +639,59 @@ def generate_kitten_tts(req: KittenTTSRequest):
         },
         duration_ms=int((time.perf_counter() - start) * 1000),
         audio_meta=audio_meta,
+    )
+
+
+@app.post("/generate/tts/vits-ljs")
+def generate_vits_ljs(req: VITSLJSRequest):
+    format_normalized = req.format.lower()
+    output_id = f"vits_{uuid.uuid4().hex}.{format_normalized}"
+    output_path = AUDIO_OUTPUT_DIR / output_id
+    start = time.perf_counter()
+
+    try:
+        audio_meta = _run_with_timeout(vits_ljs_runner.generate, text=req.text, output_path=str(output_path))
+        _check_output_exists(output_path)
+    except Exception as exc:
+        raise _map_tts_runtime_error(exc)
+
+    return _audio_response(
+        model_id="vits-ljs",
+        modality="text-to-speech",
+        audio_kind="tts",
+        output_id=output_id,
+        output_path=output_path,
+        parameters_used={"text": req.text, "format": format_normalized},
+        duration_ms=int((time.perf_counter() - start) * 1000),
+        audio_meta=audio_meta,
+    )
+
+
+@app.post("/generate/asr/whisper-large-v3")
+def generate_whisper_large_v3(req: WhisperASRRequest):
+    start = time.perf_counter()
+    try:
+        transcript = _run_with_timeout(whisper_large_v3_runner.transcribe, audio=req.audio, language=req.language, task=req.task)
+    except Exception as exc:
+        raise _map_runtime_error(exc)
+    return _asr_response(
+        model_id="whisper-large-v3",
+        transcript=transcript,
+        parameters_used={"language": req.language, "task": req.task, "format": req.format},
+        duration_ms=int((time.perf_counter() - start) * 1000),
+    )
+
+
+@app.post("/generate/asr/distil-whisper-large-v3")
+def generate_distil_whisper_large_v3(req: DistilWhisperASRRequest):
+    start = time.perf_counter()
+    try:
+        transcript = _run_with_timeout(distil_whisper_large_v3_runner.transcribe, audio=req.audio, language=req.language, task="transcribe")
+    except Exception as exc:
+        raise _map_runtime_error(exc)
+    return _asr_response(
+        model_id="distil-whisper-large-v3",
+        transcript=transcript,
+        parameters_used={"language": req.language, "task": "transcribe", "format": req.format},
+        duration_ms=int((time.perf_counter() - start) * 1000),
     )

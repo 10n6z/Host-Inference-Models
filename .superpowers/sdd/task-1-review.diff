@@ -1,0 +1,283 @@
+## Commits
+92680a4 feat(gateway): add POST /uploads/audio for voice-clone reference audio
+
+## Stat
+model-gateway/main.py          | 32 ++++++++++++++++++++++++++++-
+ model-gateway/requirements.txt |  1 +
+ tests/test_uploads_audio.py    | 46 ++++++++++++++++++++++++++++++++++++++++++
+ 3 files changed, 78 insertions(+), 1 deletion(-)
+
+## Diff
+model-gateway/main.py          | 32 ++++++++++++++++++++++++++++-
+ model-gateway/requirements.txt |  1 +
+ tests/test_uploads_audio.py    | 46 ++++++++++++++++++++++++++++++++++++++++++
+ 3 files changed, 78 insertions(+), 1 deletion(-)
+
+diff --git a/model-gateway/main.py b/model-gateway/main.py
+index 3a2c302..1c83d61 100644
+--- a/model-gateway/main.py
++++ b/model-gateway/main.py
+@@ -1,24 +1,25 @@
+ from __future__ import annotations
+ 
+ import logging
+ import os
++import shutil
+ import sys
+ import time
+ import uuid
+ from pathlib import Path
+ from typing import Any, Optional
+ 
+ import httpx
+ import yaml
+ from dotenv import load_dotenv
+-from fastapi import FastAPI, Request
++from fastapi import FastAPI, File, Request, UploadFile
+ from fastapi.exceptions import RequestValidationError
+ from fastapi.responses import JSONResponse
+ from fastapi.staticfiles import StaticFiles
+ 
+ REPO_ROOT = Path(__file__).resolve().parent.parent
+ SERVICES_ROOT = REPO_ROOT / "services"
+ if str(SERVICES_ROOT) not in sys.path:
+     sys.path.insert(0, str(SERVICES_ROOT))
+ 
+ from common.responses import build_failed_response, build_success_response, utc_now_iso
+@@ -416,20 +417,49 @@ async def generate(request: Request):
+             "model": model_id,
+             "status": success_payload.get("status"),
+             "model_job_id": success_payload.get("model_job_id") or success_payload.get("job_id"),
+             "response": success_payload,
+             "updated_at": utc_now_iso(),
+         }
+         return JSONResponse(status_code=202, content=success_payload)
+     return JSONResponse(status_code=200, content=success_payload)
+ 
+ 
++ALLOWED_REF_AUDIO_EXT = {".wav", ".flac"}
++
++
++@app.post("/uploads/audio")
++async def upload_audio(request: Request, file: UploadFile = File(...)):
++    """Store a reference-audio clip for voice cloning; return its path + URL."""
++    ext = Path(file.filename or "").suffix.lower()
++    if ext not in ALLOWED_REF_AUDIO_EXT:
++        return JSONResponse(
++            status_code=415,
++            content={
++                "success": False,
++                "error": {
++                    "code": "UNSUPPORTED_MEDIA_TYPE",
++                    "message": "Only .wav or .flac reference audio is accepted.",
++                    "details": None,
++                },
++            },
++        )
++    uploads_dir = OUTPUT_ROOT / "uploads"
++    uploads_dir.mkdir(parents=True, exist_ok=True)
++    stored_name = f"ref_{uuid.uuid4().hex}{ext}"
++    dest = uploads_dir / stored_name
++    with dest.open("wb") as out:
++        shutil.copyfileobj(file.file, out)
++    public_base = _gateway_public_base_from_request(request)
++    return {"path": str(dest), "url": f"{public_base}/outputs/uploads/{stored_name}"}
++
++
+ @app.get("/jobs/{job_id}")
+ def get_job(job_id: str):
+     job = gateway_jobs.get(job_id)
+     if job is None:
+         payload = build_failed_response(
+             model="unknown",
+             service="model-gateway",
+             family="model-gateway",
+             error_type="UnknownJob",
+             message=f"Unknown gateway job '{job_id}'.",
+diff --git a/model-gateway/requirements.txt b/model-gateway/requirements.txt
+index c1ddf33..57ff1ba 100644
+--- a/model-gateway/requirements.txt
++++ b/model-gateway/requirements.txt
+@@ -1,6 +1,7 @@
+ fastapi==0.136.3
+ uvicorn==0.48.0
+ httpx==0.28.1
+ PyYAML==6.0.3
+ pydantic==2.9.2
+ python-dotenv==1.2.2
++python-multipart==0.0.18
+diff --git a/tests/test_uploads_audio.py b/tests/test_uploads_audio.py
+new file mode 100644
+index 0000000..13fa0b5
+--- /dev/null
++++ b/tests/test_uploads_audio.py
+@@ -0,0 +1,46 @@
++import importlib
++import io
++import sys
++from pathlib import Path
++
++import pytest
++from fastapi.testclient import TestClient
++
++REPO_ROOT = Path(__file__).resolve().parents[1]
++GATEWAY_DIR = REPO_ROOT / "model-gateway"
++SERVICES_DIR = REPO_ROOT / "services"
++
++
++def _import_gateway(monkeypatch, tmp_path):
++    monkeypatch.syspath_prepend(str(GATEWAY_DIR))
++    monkeypatch.syspath_prepend(str(SERVICES_DIR))
++    monkeypatch.setenv("MODEL_REGISTRY_PATH", str(GATEWAY_DIR / "registry.yaml"))
++    monkeypatch.setenv("OUTPUT_ROOT", str(tmp_path / "outputs"))
++    (tmp_path / "outputs").mkdir(parents=True, exist_ok=True)
++    if "main" in sys.modules:
++        del sys.modules["main"]
++    return importlib.import_module("main")
++
++
++def test_upload_audio_accepts_wav(monkeypatch, tmp_path):
++    main = _import_gateway(monkeypatch, tmp_path)
++    client = TestClient(main.app)
++    resp = client.post(
++        "/uploads/audio",
++        files={"file": ("ref.wav", io.BytesIO(b"RIFFfake"), "audio/wav")},
++    )
++    assert resp.status_code == 200
++    body = resp.json()
++    assert body["path"].endswith(".wav")
++    assert "/outputs/uploads/" in body["url"]
++    assert Path(body["path"]).exists()
++
++
++def test_upload_audio_rejects_mp3(monkeypatch, tmp_path):
++    main = _import_gateway(monkeypatch, tmp_path)
++    client = TestClient(main.app)
++    resp = client.post(
++        "/uploads/audio",
++        files={"file": ("ref.mp3", io.BytesIO(b"\xff\xfbfake"), "audio/mpeg")},
++    )
++    assert resp.status_code == 415
+
+--- Changes ---
+
+model-gateway/main.py
+  @@ -1,24 +1,25 @@
+  +import shutil
+   import sys
+   import time
+   import uuid
+   from pathlib import Path
+   from typing import Any, Optional
+   
+   import httpx
+   import yaml
+   from dotenv import load_dotenv
+  -from fastapi import FastAPI, Request
+  +from fastapi import FastAPI, File, Request, UploadFile
+   from fastapi.exceptions import RequestValidationError
+   from fastapi.responses import JSONResponse
+   from fastapi.staticfiles import StaticFiles
+   
+   REPO_ROOT = Path(__file__).resolve().parent.parent
+   SERVICES_ROOT = REPO_ROOT / "services"
+   if str(SERVICES_ROOT) not in sys.path:
+       sys.path.insert(0, str(SERVICES_ROOT))
+   
+   from common.responses import build_failed_response, build_success_response, utc_now_iso
+  @@ -416,20 +417,49 @@ async def generate(request: Request):
+  +ALLOWED_REF_AUDIO_EXT = {".wav", ".flac"}
+  +
+  +
+  +@app.post("/uploads/audio")
+  +async def upload_audio(request: Request, file: UploadFile = File(...)):
+  +    """Store a reference-audio clip for voice cloning; return its path + URL."""
+  +    ext = Path(file.filename or "").suffix.lower()
+  +    if ext not in ALLOWED_REF_AUDIO_EXT:
+  +        return JSONResponse(
+  +            status_code=415,
+  +            content={
+  +                "success": False,
+  +                "error": {
+  +                    "code": "UNSUPPORTED_MEDIA_TYPE",
+  +                    "message": "Only .wav or .flac reference audio is accepted.",
+  +                    "details": None,
+  +                },
+  +            },
+  +        )
+  +    uploads_dir = OUTPUT_ROOT / "uploads"
+  +    uploads_dir.mkdir(parents=True, exist_ok=True)
+  +    stored_name = f"ref_{uuid.uuid4().hex}{ext}"
+  +    dest = uploads_dir / stored_name
+  +    with dest.open("wb") as out:
+  +        shutil.copyfileobj(file.file, out)
+  +    public_base = _gateway_public_base_from_request(request)
+  +    return {"path": str(dest), "url": f"{public_base}/outputs/uploads/{stored_name}"}
+  +
+  +
+   @app.get("/jobs/{job_id}")
+   def get_job(job_id: str):
+       job = gateway_jobs.get(job_id)
+       if job is None:
+           payload = build_failed_response(
+               model="unknown",
+               service="model-gateway",
+               family="model-gateway",
+               error_type="UnknownJob",
+               message=f"Unknown gateway job '{job_id}'.",
+  +31 -1
+
+model-gateway/requirements.txt
+  @@ -1,6 +1,7 @@
+  +python-multipart==0.0.18
+  +1 -0
+
+tests/test_uploads_audio.py
+  @@ -0,0 +1,46 @@
+  +import importlib
+  +import io
+  +import sys
+  +from pathlib import Path
+  +
+  +import pytest
+  +from fastapi.testclient import TestClient
+  +
+  +REPO_ROOT = Path(__file__).resolve().parents[1]
+  +GATEWAY_DIR = REPO_ROOT / "model-gateway"
+  +SERVICES_DIR = REPO_ROOT / "services"
+  +
+  +
+  +def _import_gateway(monkeypatch, tmp_path):
+  +    monkeypatch.syspath_prepend(str(GATEWAY_DIR))
+  +    monkeypatch.syspath_prepend(str(SERVICES_DIR))
+  +    monkeypatch.setenv("MODEL_REGISTRY_PATH", str(GATEWAY_DIR / "registry.yaml"))
+  +    monkeypatch.setenv("OUTPUT_ROOT", str(tmp_path / "outputs"))
+  +    (tmp_path / "outputs").mkdir(parents=True, exist_ok=True)
+  +    if "main" in sys.modules:
+  +        del sys.modules["main"]
+  +    return importlib.import_module("main")
+  +
+  +
+  +def test_upload_audio_accepts_wav(monkeypatch, tmp_path):
+  +    main = _import_gateway(monkeypatch, tmp_path)
+  +    client = TestClient(main.app)
+  +    resp = client.post(
+  +        "/uploads/audio",
+  +        files={"file": ("ref.wav", io.BytesIO(b"RIFFfake"), "audio/wav")},
+  +    )
+  +    assert resp.status_code == 200
+  +    body = resp.json()
+  +    assert body["path"].endswith(".wav")
+  +    assert "/outputs/uploads/" in body["url"]
+  +    assert Path(body["path"]).exists()
+  +
+  +
+  +def test_upload_audio_rejects_mp3(monkeypatch, tmp_path):
+  +    main = _import_gateway(monkeypatch, tmp_path)
+  +    client = TestClient(main.app)
+  +    resp = client.post(
+  +        "/uploads/audio",
+  +        files={"file": ("ref.mp3", io.BytesIO(b"\xff\xfbfake"), "audio/mpeg")},
+  +    )
+  +    assert resp.status_code == 415
+  +46 -0

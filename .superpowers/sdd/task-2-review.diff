@@ -1,0 +1,462 @@
+## Commits
+fcbc514 feat(outetts): add speaker-profile voice cloning via ref_audio_path
+
+## Stat
+model-gateway/registry.yaml                      |  2 +
+ servers/runners/text_to_speech/outetts_runner.py | 23 ++++++--
+ services/audio-outetts/main.py                   |  6 ++
+ tests/test_outetts_clone.py                      | 74 ++++++++++++++++++++++++
+ 4 files changed, 99 insertions(+), 6 deletions(-)
+
+## Diff
+model-gateway/registry.yaml                      |  2 +
+ servers/runners/text_to_speech/outetts_runner.py | 23 ++++++--
+ services/audio-outetts/main.py                   |  6 ++
+ tests/test_outetts_clone.py                      | 74 ++++++++++++++++++++++++
+ 4 files changed, 99 insertions(+), 6 deletions(-)
+
+diff --git a/model-gateway/registry.yaml b/model-gateway/registry.yaml
+index d31d35c..73adeb3 100644
+--- a/model-gateway/registry.yaml
++++ b/model-gateway/registry.yaml
+@@ -1066,20 +1066,22 @@ models:
+     modality: text-to-speech
+     service: audio-outetts
+     family: audio-outetts
+     endpoint: http://audio-outetts:8105/generate
+     fields:
+       text: { type: string, required: true, max_length: 12000 }
+       variant: { type: string, default: "0.2-500M", enum: ["0.2-500M", "0.3-1B"] }
+       temperature: { type: number, default: 0.1, min: 0.0, max: 2.0 }
+       repetition_penalty: { type: number, default: 1.1, min: 1.0, max: 3.0 }
+       max_length: { type: integer, default: 4096, min: 256, max: 8192 }
++      ref_audio_path: { type: string, default: "", max_length: 500 }
++      ref_text: { type: string, default: "", max_length: 12000 }
+       format: { type: string, default: wav, enum: [wav] }
+ 
+   stable-audio-open-1.0:
+     display_name: Stable Audio Open 1.0
+     modality: text-to-audio
+     service: audio-legacy
+     family: audio-legacy
+     endpoint: http://audio-legacy:8002/generate/audio/stable-audio
+     fields:
+       prompt: { type: string, required: true, max_length: 4000 }
+diff --git a/servers/runners/text_to_speech/outetts_runner.py b/servers/runners/text_to_speech/outetts_runner.py
+index 2899202..f8d5deb 100644
+--- a/servers/runners/text_to_speech/outetts_runner.py
++++ b/servers/runners/text_to_speech/outetts_runner.py
+@@ -49,47 +49,58 @@ class OuteTTSRunner:
+         self.interface = outetts.InterfaceHF("0.2", config)
+ 
+     def generate(
+         self,
+         *,
+         text: str,
+         output_path: str,
+         temperature: float = 0.1,
+         repetition_penalty: float = 1.1,
+         max_length: int = 4096,
++        ref_audio_path: str | None = None,
++        ref_text: str | None = None,
+         **kwargs,
+     ) -> dict:
+         self.load()
+         import outetts
+ 
++        speaker = None
++        cloned = False
++        if ref_audio_path and os.path.exists(ref_audio_path):
++            if ref_text:
++                speaker = self.interface.create_speaker(ref_audio_path, ref_text)
++            else:
++                speaker = self.interface.create_speaker(ref_audio_path)
++            cloned = True
++
+         if hasattr(outetts, "GenerationConfig"):
+             sampler = outetts.SamplerConfig(
+                 temperature=temperature,
+                 repetition_penalty=repetition_penalty,
+             )
+-            gen_config = outetts.GenerationConfig(
+-                text=text,
+-                sampler_config=sampler,
+-                max_length=max_length,
+-            )
+-            output = self.interface.generate(gen_config)
++            gen_kwargs = dict(text=text, sampler_config=sampler, max_length=max_length)
++            if speaker is not None:
++                gen_kwargs["speaker"] = speaker
++            output = self.interface.generate(outetts.GenerationConfig(**gen_kwargs))
+         else:
+             output = self.interface.generate(
+                 text=text,
+                 temperature=temperature,
+                 repetition_penalty=repetition_penalty,
+                 max_length=max_length,
++                speaker=speaker,
+             )
+         output.save(output_path)
+ 
+         info = sf.info(output_path)
+         duration = float(info.frames / info.samplerate)
+         return {
+             "output_path": output_path,
+             "sample_rate": info.samplerate,
+             "duration_seconds": duration,
+             "parameters": {
+                 "temperature": temperature,
+                 "repetition_penalty": repetition_penalty,
+                 "max_length": max_length,
++                "cloned": cloned,
+             },
+         }
+diff --git a/services/audio-outetts/main.py b/services/audio-outetts/main.py
+index 57d950a..a84c787 100644
+--- a/services/audio-outetts/main.py
++++ b/services/audio-outetts/main.py
+@@ -25,52 +25,58 @@ outetts_runners = {
+ SUPPORTED_MODELS = {
+     "outetts": {
+         "display_name": "OuteTTS (0.2-500M / 0.3-1B)",
+         "modality": "text-to-speech",
+         "fields": {
+             "text": {"type": "string", "required": True, "max_length": TTS_TEXT_MAX_LENGTH},
+             "variant": {"type": "string", "default": "0.2-500M", "enum": ["0.2-500M", "0.3-1B"]},
+             "temperature": {"type": "number", "default": 0.1, "min": 0.0, "max": 2.0},
+             "repetition_penalty": {"type": "number", "default": 1.1, "min": 1.0, "max": 3.0},
+             "max_length": {"type": "integer", "default": 4096, "min": 256, "max": 8192},
++            "ref_audio_path": {"type": "string", "default": ""},
++            "ref_text": {"type": "string", "default": "", "max_length": TTS_TEXT_MAX_LENGTH},
+             "format": {"type": "string", "default": "wav", "enum": ["wav"]},
+         },
+     },
+ }
+ 
+ 
+ class OuteTTSParams(BaseModel):
+     model_config = ConfigDict(extra="forbid")
+ 
+     text: str = Field(..., min_length=1, max_length=TTS_TEXT_MAX_LENGTH)
+     variant: str = Field("0.2-500M", pattern="^(0\\.2-500M|0\\.3-1B)$")
+     temperature: float = Field(0.1, ge=0.0, le=2.0)
+     repetition_penalty: float = Field(1.1, ge=1.0, le=3.0)
+     max_length: int = Field(4096, ge=256, le=8192)
++    ref_audio_path: str = Field("", max_length=500)
++    ref_text: str = Field("", max_length=TTS_TEXT_MAX_LENGTH)
+     format: str = Field("wav", pattern=WAV_ONLY_PATTERN)
+ 
+ 
+ def _generate_outetts(**params) -> dict:
+     req = OuteTTSParams.model_validate(params)
+     if req.variant not in outetts_runners:
+         raise ValueError(f"Unsupported OuteTTS variant '{req.variant}'.")
+ 
+     format_normalized = req.format.lower()
+     output_id = f"outetts_{uuid.uuid4().hex}.{format_normalized}"
+     output_path = AUDIO_OUTPUT_DIR / output_id
+ 
+     audio_meta = outetts_runners[req.variant].generate(
+         text=req.text,
+         output_path=str(output_path),
+         temperature=req.temperature,
+         repetition_penalty=req.repetition_penalty,
+         max_length=req.max_length,
++        ref_audio_path=req.ref_audio_path or None,
++        ref_text=req.ref_text or None,
+     )
+     ensure_output_exists(output_path)
+     return audio_response(
+         model_id=f"outetts-{req.variant}",
+         modality="text-to-speech",
+         audio_kind="tts",
+         output_id=output_id,
+         output_path=output_path,
+         parameters_used={
+             "text": req.text,
+diff --git a/tests/test_outetts_clone.py b/tests/test_outetts_clone.py
+new file mode 100644
+index 0000000..659f908
+--- /dev/null
++++ b/tests/test_outetts_clone.py
+@@ -0,0 +1,74 @@
++import sys
++import types
++from pathlib import Path
++
++REPO_ROOT = Path(__file__).resolve().parents[1]
++RUNNERS_DIR = REPO_ROOT / "servers"
++
++
++def _stub_heavy_deps(monkeypatch):
++    """Stub out native deps that aren't installed in the test env."""
++    if "numpy" not in sys.modules:
++        monkeypatch.setitem(sys.modules, "numpy", types.ModuleType("numpy"))
++    if "soundfile" not in sys.modules:
++        fake_sf = types.ModuleType("soundfile")
++
++        class _FakeSFInfo:
++            frames = 24000
++            samplerate = 24000
++
++        fake_sf.info = lambda path: _FakeSFInfo()
++        monkeypatch.setitem(sys.modules, "soundfile", fake_sf)
++
++
++def _load_runner(monkeypatch):
++    _stub_heavy_deps(monkeypatch)
++    monkeypatch.syspath_prepend(str(RUNNERS_DIR))
++    # Remove cached module so monkeypatched sys.modules take effect
++    for key in list(sys.modules):
++        if "outetts_runner" in key:
++            del sys.modules[key]
++    from runners.text_to_speech.outetts_runner import OuteTTSRunner
++    return OuteTTSRunner
++
++
++def test_generate_creates_speaker_when_ref_audio_present(monkeypatch, tmp_path):
++    OuteTTSRunner = _load_runner(monkeypatch)
++    runner = OuteTTSRunner(variant="0.2-500M")
++
++    created = {}
++
++    class _FakeOutput:
++        def save(self, path):
++            Path(path).write_bytes(b"RIFF0000WAVEfmt ")
++
++    class _FakeInterface:
++        def create_speaker(self, audio_path, *args):
++            created["audio_path"] = audio_path
++            created["transcript"] = args[0] if args else None
++            return {"speaker": "fake"}
++
++        def generate(self, *args, **kwargs):
++            created["speaker_arg"] = kwargs.get("speaker")
++            return _FakeOutput()
++
++    runner.interface = _FakeInterface()
++    runner.load = lambda: None  # already "loaded"
++
++    ref = tmp_path / "ref.wav"
++    ref.write_bytes(b"RIFF0000WAVEfmt ")
++    out = tmp_path / "out.wav"
++
++    fake_outetts = types.ModuleType("outetts")  # no GenerationConfig attr -> legacy kwargs branch
++    monkeypatch.setitem(sys.modules, "outetts", fake_outetts)
++
++    runner.generate(
++        text="hello",
++        output_path=str(out),
++        ref_audio_path=str(ref),
++        ref_text="hello there",
++    )
++
++    assert created["audio_path"] == str(ref)
++    assert created["transcript"] == "hello there"
++    assert created["speaker_arg"] == {"speaker": "fake"}
+
+--- Changes ---
+
+model-gateway/registry.yaml
+  @@ -1066,20 +1066,22 @@ models:
+  +      ref_audio_path: { type: string, default: "", max_length: 500 }
+  +      ref_text: { type: string, default: "", max_length: 12000 }
+         format: { type: string, default: wav, enum: [wav] }
+   
+     stable-audio-open-1.0:
+       display_name: Stable Audio Open 1.0
+       modality: text-to-audio
+       service: audio-legacy
+       family: audio-legacy
+       endpoint: http://audio-legacy:8002/generate/audio/stable-audio
+       fields:
+         prompt: { type: string, required: true, max_length: 4000 }
+  +2 -0
+
+servers/runners/text_to_speech/outetts_runner.py
+  @@ -49,47 +49,58 @@ class OuteTTSRunner:
+  +        ref_audio_path: str | None = None,
+  +        ref_text: str | None = None,
+           **kwargs,
+       ) -> dict:
+           self.load()
+           import outetts
+   
+  +        speaker = None
+  +        cloned = False
+  +        if ref_audio_path and os.path.exists(ref_audio_path):
+  +            if ref_text:
+  +                speaker = self.interface.create_speaker(ref_audio_path, ref_text)
+  +            else:
+  +                speaker = self.interface.create_speaker(ref_audio_path)
+  +            cloned = True
+  +
+           if hasattr(outetts, "GenerationConfig"):
+               sampler = outetts.SamplerConfig(
+                   temperature=temperature,
+                   repetition_penalty=repetition_penalty,
+               )
+  -            gen_config = outetts.GenerationConfig(
+  -                text=text,
+  -                sampler_config=sampler,
+  -                max_length=max_length,
+  -            )
+  -            output = self.interface.generate(gen_config)
+  +            gen_kwargs = dict(text=text, sampler_config=sampler, max_length=max_length)
+  +            if speaker is not None:
+  +                gen_kwargs["speaker"] = speaker
+  +            output = self.interface.generate(outetts.GenerationConfig(**gen_kwargs))
+           else:
+               output = self.interface.generate(
+                   text=text,
+                   temperature=temperature,
+                   repetition_penalty=repetition_penalty,
+                   max_length=max_length,
+  +                speaker=speaker,
+               )
+           output.save(output_path)
+   
+           info = sf.info(output_path)
+           duration = float(info.frames / info.samplerate)
+           return {
+               "output_path": output_path,
+               "sample_rate": info.samplerate,
+               "duration_seconds": duration,
+               "parameters": {
+                   "temperature": temperature,
+                   "repetition_penalty": repetition_penalty,
+                   "max_length": max_length,
+  +                "cloned": cloned,
+               },
+           }
+  +17 -6
+
+services/audio-outetts/main.py
+  @@ -25,52 +25,58 @@ outetts_runners = {
+  +            "ref_audio_path": {"type": "string", "default": ""},
+  +            "ref_text": {"type": "string", "default": "", "max_length": TTS_TEXT_MAX_LENGTH},
+               "format": {"type": "string", "default": "wav", "enum": ["wav"]},
+           },
+       },
+   }
+   
+   
+   class OuteTTSParams(BaseModel):
+       model_config = ConfigDict(extra="forbid")
+   
+       text: str = Field(..., min_length=1, max_length=TTS_TEXT_MAX_LENGTH)
+       variant: str = Field("0.2-500M", pattern="^(0\\.2-500M|0\\.3-1B)$")
+       temperature: float = Field(0.1, ge=0.0, le=2.0)
+       repetition_penalty: float = Field(1.1, ge=1.0, le=3.0)
+       max_length: int = Field(4096, ge=256, le=8192)
+  +    ref_audio_path: str = Field("", max_length=500)
+  +    ref_text: str = Field("", max_length=TTS_TEXT_MAX_LENGTH)
+       format: str = Field("wav", pattern=WAV_ONLY_PATTERN)
+   
+   
+   def _generate_outetts(**params) -> dict:
+       req = OuteTTSParams.model_validate(params)
+       if req.variant not in outetts_runners:
+           raise ValueError(f"Unsupported OuteTTS variant '{req.variant}'.")
+   
+       format_normalized = req.format.lower()
+       output_id = f"outetts_{uuid.uuid4().hex}.{format_normalized}"
+       output_path = AUDIO_OUTPUT_DIR / output_id
+   
+       audio_meta = outetts_runners[req.variant].generate(
+           text=req.text,
+           output_path=str(output_path),
+           temperature=req.temperature,
+           repetition_penalty=req.repetition_penalty,
+           max_length=req.max_length,
+  +        ref_audio_path=req.ref_audio_path or None,
+  +        ref_text=req.ref_text or None,
+       )
+       ensure_output_exists(output_path)
+       return audio_response(
+           model_id=f"outetts-{req.variant}",
+           modality="text-to-speech",
+           audio_kind="tts",
+           output_id=output_id,
+           output_path=output_path,
+           parameters_used={
+               "text": req.text,
+  +6 -0
+
+tests/test_outetts_clone.py
+  @@ -0,0 +1,74 @@
+  +import sys
+  +import types
+  +from pathlib import Path
+  +
+  +REPO_ROOT = Path(__file__).resolve().parents[1]
+  +RUNNERS_DIR = REPO_ROOT / "servers"
+  +
+  +
+  +def _stub_heavy_deps(monkeypatch):
+  +    """Stub out native deps that aren't installed in the test env."""
+  +    if "numpy" not in sys.modules:
+  +        monkeypatch.setitem(sys.modules, "numpy", types.ModuleType("numpy"))
+  +    if "soundfile" not in sys.modules:
+  +        fake_sf = types.ModuleType("soundfile")
+  +
+  +        class _FakeSFInfo:
+  +            frames = 24000
+  +            samplerate = 24000
+  +
+  +        fake_sf.info = lambda path: _FakeSFInfo()
+  +        monkeypatch.setitem(sys.modules, "soundfile", fake_sf)
+  +
+  +
+  +def _load_runner(monkeypatch):
+  +    _stub_heavy_deps(monkeypatch)
+  +    monkeypatch.syspath_prepend(str(RUNNERS_DIR))
+  +    # Remove cached module so monkeypatched sys.modules take effect
+  +    for key in list(sys.modules):
+  +        if "outetts_runner" in key:
+  +            del sys.modules[key]
+  +    from runners.text_to_speech.outetts_runner import OuteTTSRunner
+  +    return OuteTTSRunner
+  +
+  +
+  +def test_generate_creates_speaker_when_ref_audio_present(monkeypatch, tmp_path):
+  +    OuteTTSRunner = _load_runner(monkeypatch)
+  +    runner = OuteTTSRunner(variant="0.2-500M")
+  +
+  +    created = {}
+  +
+  +    class _FakeOutput:
+  +        def save(self, path):
+  +            Path(path).write_bytes(b"RIFF0000WAVEfmt ")
+  +
+  +    class _FakeInterface:
+  +        def create_speaker(self, audio_path, *args):
+  +            created["audio_path"] = audio_path
+  +            created["transcript"] = args[0] if args else None
+  +            return {"speaker": "fake"}
+  +
+  +        def generate(self, *args, **kwargs):
+  +            created["speaker_arg"] = kwargs.get("speaker")
+  +            return _FakeOutput()
+  +
+  +    runner.interface = _FakeInterface()
+  +    runner.load = lambda: None  # already "loaded"
+  +
+  +    ref = tmp_path / "ref.wav"
+  +    ref.write_bytes(b"RIFF0000WAVEfmt ")
+  +    out = tmp_path / "out.wav"
+  +
+  +    fake_outetts = types.ModuleType("outetts")  # no GenerationConfig attr -> legacy kwargs branch
+  +    monkeypatch.setitem(sys.modules, "outetts", fake_outetts)
+  +
+  +    runner.generate(
+  +        text="hello",
+  +        output_path=str(out),
+  +        ref_audio_path=str(ref),
+  +        ref_text="hello there",
+  +    )
+  +
+  +    assert created["audio_path"] == str(ref)
+  +    assert created["transcript"] == "hello there"
+  +    assert created["speaker_arg"] == {"speaker": "fake"}
+  +74 -0

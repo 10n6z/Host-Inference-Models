@@ -42,6 +42,18 @@ services:
     name: audio-csm
     family: audio-csm
     base_url: http://audio-csm:8110
+  audio-parler:
+    name: audio-parler
+    family: audio-parler
+    base_url: http://audio-parler:8111
+  audio-dia:
+    name: audio-dia
+    family: audio-dia
+    base_url: http://audio-dia:8112
+  audio-cosyvoice:
+    name: audio-cosyvoice
+    family: audio-cosyvoice
+    base_url: http://audio-cosyvoice:8113
   ollama:
     name: ollama
     family: text-generation
@@ -844,6 +856,437 @@ models:
       random_seed: { type: boolean, default: true }
       seed: { type: integer, required: false, min: 0, max: 2147483647 }
 
+  # ===========================================================================
+  # Commercially-usable image models added to reach >=20 per category.
+  # Ranked by Hugging Face download popularity. implemented:false means the
+  # catalog entry + license are published but the GPU-side runner is not yet
+  # wired; /generate returns 501 until a runner is added and implemented:true.
+  # ===========================================================================
+  sdxl-base-1.0:
+    display_name: Stable Diffusion XL Base 1.0
+    task: image-generation
+    modality: image
+    service: multimodal-legacy
+    family: image-video-legacy
+    endpoint: http://host.docker.internal:8001/generate/image/sdxl
+    mode: sync
+    license: openrail++
+    source_repo: stabilityai/stable-diffusion-xl-base-1.0
+    commercial_use: "yes"
+    implemented: true
+    fields:
+      prompt: { type: string, required: true, max_length: 4000 }
+      negative_prompt: { type: string, required: false, max_length: 4000 }
+      width: { type: integer, default: 1024, min: 512, max: 2048 }
+      height: { type: integer, default: 1024, min: 512, max: 2048 }
+      steps: { type: integer, default: 30, min: 1, max: 60 }
+      guidance_scale: { type: number, default: 7.0, min: 0.0, max: 20.0 }
+      random_seed: { type: boolean, default: true }
+      seed: { type: integer, required: false, min: 0, max: 2147483647 }
+
+  sd-v1-5:
+    display_name: Stable Diffusion v1.5
+    task: image-generation
+    modality: image
+    service: multimodal-legacy
+    family: image-video-legacy
+    endpoint: http://host.docker.internal:8001/generate/image/sd15
+    mode: sync
+    license: creativeml-openrail-m
+    source_repo: stable-diffusion-v1-5/stable-diffusion-v1-5
+    commercial_use: "yes"
+    implemented: true
+    fields:
+      prompt: { type: string, required: true, max_length: 4000 }
+      negative_prompt: { type: string, required: false, max_length: 4000 }
+      width: { type: integer, default: 512, min: 256, max: 1024 }
+      height: { type: integer, default: 512, min: 256, max: 1024 }
+      steps: { type: integer, default: 30, min: 1, max: 60 }
+      guidance_scale: { type: number, default: 7.5, min: 0.0, max: 20.0 }
+      random_seed: { type: boolean, default: true }
+      seed: { type: integer, required: false, min: 0, max: 2147483647 }
+
+  dreamshaper-8:
+    display_name: DreamShaper 8
+    task: image-generation
+    modality: image
+    service: multimodal-legacy
+    family: image-video-legacy
+    endpoint: http://host.docker.internal:8001/generate/image/dreamshaper-8
+    mode: sync
+    license: creativeml-openrail-m
+    source_repo: Lykon/dreamshaper-8
+    commercial_use: "yes"
+    implemented: true
+    replaces: sd-2-1
+    fields:
+      prompt: { type: string, required: true, max_length: 4000 }
+      negative_prompt: { type: string, required: false, max_length: 4000 }
+      width: { type: integer, default: 512, min: 256, max: 1024 }
+      height: { type: integer, default: 512, min: 256, max: 1024 }
+      steps: { type: integer, default: 30, min: 1, max: 60 }
+      guidance_scale: { type: number, default: 7.5, min: 0.0, max: 20.0 }
+      random_seed: { type: boolean, default: true }
+      seed: { type: integer, required: false, min: 0, max: 2147483647 }
+
+  sdxl-lightning:
+    display_name: SDXL Lightning 4-Step
+    task: image-generation
+    modality: image
+    service: multimodal-legacy
+    family: image-video-legacy
+    endpoint: http://host.docker.internal:8001/generate/image/sdxl-lightning
+    mode: sync
+    license: openrail++
+    source_repo: ByteDance/SDXL-Lightning
+    commercial_use: "yes"
+    implemented: true
+    replaces: sdxl-turbo
+    fields:
+      prompt: { type: string, required: true, max_length: 4000 }
+      width: { type: integer, default: 1024, min: 512, max: 2048 }
+      height: { type: integer, default: 1024, min: 512, max: 2048 }
+      steps: { type: integer, default: 4, min: 1, max: 8 }
+      guidance_scale: { type: number, default: 0.0, min: 0.0, max: 0.0 }
+      random_seed: { type: boolean, default: true }
+      seed: { type: integer, required: false, min: 0, max: 2147483647 }
+
+  dreamshaper-xl:
+    display_name: DreamShaper XL 1.0
+    task: image-generation
+    modality: image
+    service: multimodal-legacy
+    family: image-video-legacy
+    endpoint: http://host.docker.internal:8001/generate/image/dreamshaper-xl
+    mode: sync
+    license: openrail++
+    source_repo: Lykon/dreamshaper-xl-1-0
+    commercial_use: "yes"
+    implemented: true
+    replaces: sd-turbo
+    fields:
+      prompt: { type: string, required: true, max_length: 4000 }
+      negative_prompt: { type: string, required: false, max_length: 4000 }
+      width: { type: integer, default: 1024, min: 512, max: 1536 }
+      height: { type: integer, default: 1024, min: 512, max: 1536 }
+      steps: { type: integer, default: 30, min: 1, max: 60 }
+      guidance_scale: { type: number, default: 7.0, min: 0.0, max: 20.0 }
+      random_seed: { type: boolean, default: true }
+      seed: { type: integer, required: false, min: 0, max: 2147483647 }
+
+  realvisxl-v4:
+    display_name: RealVisXL V4.0
+    task: image-generation
+    modality: image
+    service: multimodal-legacy
+    family: image-video-legacy
+    endpoint: http://host.docker.internal:8001/generate/image/realvisxl-v4
+    mode: sync
+    license: openrail++
+    source_repo: SG161222/RealVisXL_V4.0
+    commercial_use: "yes"
+    implemented: true
+    replaces: stable-cascade
+    fields:
+      prompt: { type: string, required: true, max_length: 4000 }
+      negative_prompt: { type: string, required: false, max_length: 4000 }
+      width: { type: integer, default: 1024, min: 512, max: 1536 }
+      height: { type: integer, default: 1024, min: 512, max: 1536 }
+      steps: { type: integer, default: 30, min: 1, max: 60 }
+      guidance_scale: { type: number, default: 7.0, min: 0.0, max: 20.0 }
+      random_seed: { type: boolean, default: true }
+      seed: { type: integer, required: false, min: 0, max: 2147483647 }
+
+  sdxl-turbo:
+    display_name: SDXL Turbo
+    task: image-generation
+    modality: image
+    service: multimodal-legacy
+    family: image-video-legacy
+    endpoint: http://host.docker.internal:8001/generate/image/sdxl-turbo
+    mode: sync
+    license: sai-nc-community
+    source_repo: stabilityai/sdxl-turbo
+    commercial_use: "no"
+    implemented: false
+    notes:
+      - "Non-commercial Stability AI license; replaced by sdxl-lightning for commercial expansion."
+    fields:
+      prompt: { type: string, required: true, max_length: 4000 }
+      width: { type: integer, default: 512, min: 256, max: 1024 }
+      height: { type: integer, default: 512, min: 256, max: 1024 }
+      steps: { type: integer, default: 1, min: 1, max: 10 }
+      guidance_scale: { type: number, default: 0.0, min: 0.0, max: 5.0 }
+      random_seed: { type: boolean, default: true }
+      seed: { type: integer, required: false, min: 0, max: 2147483647 }
+
+  sd-turbo:
+    display_name: SD-Turbo
+    task: image-generation
+    modality: image
+    service: multimodal-legacy
+    family: image-video-legacy
+    endpoint: http://host.docker.internal:8001/generate/image/sd-turbo
+    mode: sync
+    license: sai-nc-community
+    source_repo: stabilityai/sd-turbo
+    commercial_use: "no"
+    implemented: false
+    notes:
+      - "Non-commercial Stability AI license; replaced by dreamshaper-xl for commercial expansion."
+    fields:
+      prompt: { type: string, required: true, max_length: 4000 }
+      width: { type: integer, default: 512, min: 256, max: 1024 }
+      height: { type: integer, default: 512, min: 256, max: 1024 }
+      steps: { type: integer, default: 1, min: 1, max: 10 }
+      guidance_scale: { type: number, default: 0.0, min: 0.0, max: 5.0 }
+      random_seed: { type: boolean, default: true }
+      seed: { type: integer, required: false, min: 0, max: 2147483647 }
+
+  playground-v2-5-1024:
+    display_name: Playground v2.5 1024px Aesthetic
+    task: image-generation
+    modality: image
+    service: multimodal-legacy
+    family: image-video-legacy
+    endpoint: http://host.docker.internal:8001/generate/image/playground-v2-5
+    mode: sync
+    license: playground-v2-5-community
+    commercial_use: "yes"
+    source_repo: playgroundai/playground-v2.5-1024px-aesthetic
+    implemented: true
+    fields:
+      prompt: { type: string, required: true, max_length: 4000 }
+      negative_prompt: { type: string, required: false, max_length: 4000 }
+      width: { type: integer, default: 1024, min: 512, max: 1536 }
+      height: { type: integer, default: 1024, min: 512, max: 1536 }
+      steps: { type: integer, default: 30, min: 1, max: 60 }
+      guidance_scale: { type: number, default: 3.0, min: 0.0, max: 20.0 }
+      random_seed: { type: boolean, default: true }
+      seed: { type: integer, required: false, min: 0, max: 2147483647 }
+
+  sd-2-1:
+    display_name: Stable Diffusion 2.1
+    task: image-generation
+    modality: image
+    service: multimodal-legacy
+    family: image-video-legacy
+    endpoint: http://host.docker.internal:8001/generate/image/sd21
+    mode: sync
+    license: openrail++
+    source_repo: stabilityai/stable-diffusion-2-1
+    commercial_use: "no"
+    implemented: false
+    notes:
+      - "Unavailable via Hugging Face API as of 2026-06-24; replacement required before implementation."
+    fields:
+      prompt: { type: string, required: true, max_length: 4000 }
+      negative_prompt: { type: string, required: false, max_length: 4000 }
+      width: { type: integer, default: 768, min: 256, max: 1024 }
+      height: { type: integer, default: 768, min: 256, max: 1024 }
+      steps: { type: integer, default: 30, min: 1, max: 60 }
+      guidance_scale: { type: number, default: 7.5, min: 0.0, max: 20.0 }
+      random_seed: { type: boolean, default: true }
+      seed: { type: integer, required: false, min: 0, max: 2147483647 }
+
+  kandinsky-2-2-decoder:
+    display_name: Kandinsky 2.2
+    task: image-generation
+    modality: image
+    service: multimodal-legacy
+    family: image-video-legacy
+    endpoint: http://host.docker.internal:8001/generate/image/kandinsky-2-2
+    mode: sync
+    license: apache-2.0
+    source_repo: kandinsky-community/kandinsky-2-2-decoder
+    commercial_use: "yes"
+    implemented: true
+    fields:
+      prompt: { type: string, required: true, max_length: 4000 }
+      negative_prompt: { type: string, required: false, max_length: 4000 }
+      width: { type: integer, default: 1024, min: 512, max: 1536 }
+      height: { type: integer, default: 1024, min: 512, max: 1536 }
+      steps: { type: integer, default: 50, min: 1, max: 100 }
+      guidance_scale: { type: number, default: 4.0, min: 0.0, max: 20.0 }
+      random_seed: { type: boolean, default: true }
+      seed: { type: integer, required: false, min: 0, max: 2147483647 }
+
+  wuerstchen-v2:
+    display_name: Würstchen v2
+    task: image-generation
+    modality: image
+    service: multimodal-legacy
+    family: image-video-legacy
+    endpoint: http://host.docker.internal:8001/generate/image/wuerstchen
+    mode: sync
+    license: mit
+    source_repo: warp-ai/wuerstchen
+    commercial_use: "yes"
+    implemented: true
+    fields:
+      prompt: { type: string, required: true, max_length: 4000 }
+      negative_prompt: { type: string, required: false, max_length: 4000 }
+      width: { type: integer, default: 1024, min: 512, max: 1536 }
+      height: { type: integer, default: 1024, min: 512, max: 1536 }
+      steps: { type: integer, default: 30, min: 1, max: 60 }
+      guidance_scale: { type: number, default: 4.0, min: 0.0, max: 20.0 }
+      random_seed: { type: boolean, default: true }
+      seed: { type: integer, required: false, min: 0, max: 2147483647 }
+
+  stable-cascade:
+    display_name: Stable Cascade
+    task: image-generation
+    modality: image
+    service: multimodal-legacy
+    family: image-video-legacy
+    endpoint: http://host.docker.internal:8001/generate/image/stable-cascade
+    mode: sync
+    license: stable-cascade-nc-community
+    source_repo: stabilityai/stable-cascade
+    commercial_use: "no"
+    implemented: false
+    notes:
+      - "Non-commercial Stable Cascade license; replaced by sd-3.5-large-turbo for commercial expansion."
+    fields:
+      prompt: { type: string, required: true, max_length: 4000 }
+      negative_prompt: { type: string, required: false, max_length: 4000 }
+      width: { type: integer, default: 1024, min: 512, max: 1536 }
+      height: { type: integer, default: 1024, min: 512, max: 1536 }
+      steps: { type: integer, default: 20, min: 1, max: 60 }
+      guidance_scale: { type: number, default: 4.0, min: 0.0, max: 20.0 }
+      random_seed: { type: boolean, default: true }
+      seed: { type: integer, required: false, min: 0, max: 2147483647 }
+
+  pixart-sigma-xl-2:
+    display_name: PixArt-Sigma XL 2 1024
+    task: image-generation
+    modality: image
+    service: multimodal-legacy
+    family: image-video-legacy
+    endpoint: http://host.docker.internal:8001/generate/image/pixart-sigma
+    mode: sync
+    license: openrail++
+    source_repo: PixArt-alpha/PixArt-Sigma-XL-2-1024-MS
+    commercial_use: "yes"
+    implemented: true
+    fields:
+      prompt: { type: string, required: true, max_length: 4000 }
+      negative_prompt: { type: string, required: false, max_length: 4000 }
+      width: { type: integer, default: 1024, min: 512, max: 2048 }
+      height: { type: integer, default: 1024, min: 512, max: 2048 }
+      steps: { type: integer, default: 20, min: 1, max: 60 }
+      guidance_scale: { type: number, default: 4.5, min: 0.0, max: 20.0 }
+      random_seed: { type: boolean, default: true }
+      seed: { type: integer, required: false, min: 0, max: 2147483647 }
+
+  flux-1-krea-dev:
+    display_name: FLUX.1 Krea [dev] (Apache fork)
+    task: image-generation
+    modality: image
+    service: flux2
+    family: image-flux2
+    endpoint: http://host.docker.internal:8011/generate/image/flux-krea
+    mode: sync
+    license: apache-2.0
+    source_repo: black-forest-labs/FLUX.1-Krea-dev
+    commercial_use: "no"
+    implemented: false
+    fields:
+      prompt: { type: string, required: true, max_length: 4000 }
+      width: { type: integer, default: 1024, min: 512, max: 2048 }
+      height: { type: integer, default: 1024, min: 512, max: 2048 }
+      steps: { type: integer, default: 28, min: 1, max: 50 }
+      guidance_scale: { type: number, default: 4.5, min: 0.0, max: 20.0 }
+      random_seed: { type: boolean, default: true }
+      seed: { type: integer, required: false, min: 0, max: 2147483647 }
+
+  segmind-vega:
+    display_name: Segmind Vega
+    task: image-generation
+    modality: image
+    service: multimodal-legacy
+    family: image-video-legacy
+    endpoint: http://host.docker.internal:8001/generate/image/segmind-vega
+    mode: sync
+    license: apache-2.0
+    source_repo: segmind/Segmind-Vega
+    commercial_use: "yes"
+    implemented: true
+    fields:
+      prompt: { type: string, required: true, max_length: 4000 }
+      negative_prompt: { type: string, required: false, max_length: 4000 }
+      width: { type: integer, default: 1024, min: 512, max: 1536 }
+      height: { type: integer, default: 1024, min: 512, max: 1536 }
+      steps: { type: integer, default: 25, min: 1, max: 60 }
+      guidance_scale: { type: number, default: 9.0, min: 0.0, max: 20.0 }
+      random_seed: { type: boolean, default: true }
+      seed: { type: integer, required: false, min: 0, max: 2147483647 }
+
+  ssd-1b:
+    display_name: Segmind SSD-1B
+    task: image-generation
+    modality: image
+    service: multimodal-legacy
+    family: image-video-legacy
+    endpoint: http://host.docker.internal:8001/generate/image/ssd-1b
+    mode: sync
+    license: apache-2.0
+    source_repo: segmind/SSD-1B
+    commercial_use: "yes"
+    implemented: true
+    fields:
+      prompt: { type: string, required: true, max_length: 4000 }
+      negative_prompt: { type: string, required: false, max_length: 4000 }
+      width: { type: integer, default: 1024, min: 512, max: 1536 }
+      height: { type: integer, default: 1024, min: 512, max: 1536 }
+      steps: { type: integer, default: 30, min: 1, max: 60 }
+      guidance_scale: { type: number, default: 9.0, min: 0.0, max: 20.0 }
+      random_seed: { type: boolean, default: true }
+      seed: { type: integer, required: false, min: 0, max: 2147483647 }
+
+  lcm-sdxl:
+    display_name: Latent Consistency Model SDXL
+    task: image-generation
+    modality: image
+    service: multimodal-legacy
+    family: image-video-legacy
+    endpoint: http://host.docker.internal:8001/generate/image/lcm-sdxl
+    mode: sync
+    license: openrail++
+    source_repo: latent-consistency/lcm-sdxl
+    commercial_use: "yes"
+    implemented: true
+    fields:
+      prompt: { type: string, required: true, max_length: 4000 }
+      width: { type: integer, default: 1024, min: 512, max: 1536 }
+      height: { type: integer, default: 1024, min: 512, max: 1536 }
+      steps: { type: integer, default: 4, min: 1, max: 12 }
+      guidance_scale: { type: number, default: 1.0, min: 0.0, max: 10.0 }
+      random_seed: { type: boolean, default: true }
+      seed: { type: integer, required: false, min: 0, max: 2147483647 }
+
+  openjourney-v4:
+    display_name: Openjourney v4
+    task: image-generation
+    modality: image
+    service: multimodal-legacy
+    family: image-video-legacy
+    endpoint: http://host.docker.internal:8001/generate/image/openjourney
+    mode: sync
+    license: creativeml-openrail-m
+    source_repo: prompthero/openjourney-v4
+    commercial_use: "yes"
+    implemented: true
+    fields:
+      prompt: { type: string, required: true, max_length: 4000 }
+      negative_prompt: { type: string, required: false, max_length: 4000 }
+      width: { type: integer, default: 512, min: 256, max: 1024 }
+      height: { type: integer, default: 512, min: 256, max: 1024 }
+      steps: { type: integer, default: 30, min: 1, max: 60 }
+      guidance_scale: { type: number, default: 7.0, min: 0.0, max: 20.0 }
+      random_seed: { type: boolean, default: true }
+      seed: { type: integer, required: false, min: 0, max: 2147483647 }
+
   wan21-t2v-1.3b:
     display_name: Wan2.1 T2V 1.3B
     task: video-generation
@@ -1020,6 +1463,299 @@ models:
       seed: { type: integer, required: false, min: 0, max: 2147483647 }
       decode_timestep: { type: number, default: 0.03, min: 0.0, max: 1.0 }
       decode_noise_scale: { type: number, default: 0.025, min: 0.0, max: 1.0 }
+
+  # ===========================================================================
+  # Commercially-usable video models added to reach >=20 per category.
+  # Ranked by Hugging Face download popularity. implemented:false until runner.
+  # ===========================================================================
+  ltx-video-13b-097:
+    display_name: LTX-Video 13B 0.9.7
+    task: video-generation
+    modality: video
+    service: multimodal-legacy
+    family: image-video-legacy
+    endpoint: http://host.docker.internal:8001/generate/video/ltx-video-13b
+    mode: sync
+    license: openrail++
+    source_repo: Lightricks/LTX-Video
+    implemented: true
+    fields:
+      prompt: { type: string, required: true, max_length: 4000 }
+      negative_prompt: { type: string, required: false, max_length: 4000 }
+      width: { type: integer, default: 768, min: 256, max: 1280 }
+      height: { type: integer, default: 512, min: 256, max: 1280 }
+      num_frames: { type: integer, default: 121, min: 8, max: 257 }
+      num_inference_steps: { type: integer, default: 30, min: 1, max: 80 }
+      guidance_scale: { type: number, default: 3.0, min: 0.0, max: 25.0 }
+      random_seed: { type: boolean, default: true }
+      seed: { type: integer, required: false, min: 0, max: 2147483647 }
+
+  wan21-i2v-14b-480p:
+    display_name: Wan2.1 I2V 14B 480P
+    task: video-generation
+    modality: video
+    service: multimodal-legacy
+    family: image-video-legacy
+    endpoint: http://host.docker.internal:8001/generate/video/wan-i2v-14b
+    mode: sync
+    license: apache-2.0
+    source_repo: Wan-AI/Wan2.1-I2V-14B-480P-Diffusers
+    implemented: true
+    fields:
+      prompt: { type: string, required: true, max_length: 4000 }
+      image: { type: string, required: true }
+      negative_prompt: { type: string, required: false, max_length: 4000 }
+      width: { type: integer, default: 832, min: 256, max: 1024 }
+      height: { type: integer, default: 480, min: 256, max: 1024 }
+      num_frames: { type: integer, default: 81, min: 8, max: 81 }
+      num_inference_steps: { type: integer, default: 40, min: 1, max: 60 }
+      guidance_scale: { type: number, default: 5.0, min: 0.0, max: 20.0 }
+      random_seed: { type: boolean, default: true }
+      seed: { type: integer, required: false, min: 0, max: 2147483647 }
+
+  wan22-t2v-a14b:
+    display_name: Wan2.2 T2V A14B
+    task: video-generation
+    modality: video
+    service: multimodal-legacy
+    family: image-video-legacy
+    endpoint: http://host.docker.internal:8001/generate/video/wan22-t2v
+    mode: sync
+    license: apache-2.0
+    source_repo: Wan-AI/Wan2.2-T2V-A14B-Diffusers
+    implemented: true
+    fields:
+      prompt: { type: string, required: true, max_length: 4000 }
+      negative_prompt: { type: string, required: false, max_length: 4000 }
+      width: { type: integer, default: 1280, min: 256, max: 1280 }
+      height: { type: integer, default: 720, min: 256, max: 1280 }
+      num_frames: { type: integer, default: 81, min: 8, max: 121 }
+      num_inference_steps: { type: integer, default: 40, min: 1, max: 60 }
+      guidance_scale: { type: number, default: 5.0, min: 0.0, max: 20.0 }
+      random_seed: { type: boolean, default: true }
+      seed: { type: integer, required: false, min: 0, max: 2147483647 }
+
+  cogvideox-5b:
+    display_name: CogVideoX 5B
+    task: video-generation
+    modality: video
+    service: multimodal-legacy
+    family: image-video-legacy
+    endpoint: http://host.docker.internal:8001/generate/video/cogvideox-5b
+    mode: sync
+    license: cogvideox-license
+    commercial_use: "yes"
+    source_repo: THUDM/CogVideoX-5b
+    implemented: true
+    fields:
+      prompt: { type: string, required: true, max_length: 4000 }
+      negative_prompt: { type: string, required: false, max_length: 4000 }
+      width: { type: integer, default: 720, min: 256, max: 1024 }
+      height: { type: integer, default: 480, min: 256, max: 1024 }
+      num_frames: { type: integer, default: 49, min: 8, max: 49 }
+      num_inference_steps: { type: integer, default: 50, min: 1, max: 80 }
+      guidance_scale: { type: number, default: 6.0, min: 0.0, max: 20.0 }
+      random_seed: { type: boolean, default: true }
+      seed: { type: integer, required: false, min: 0, max: 2147483647 }
+
+  cogvideox-1-5-5b:
+    display_name: CogVideoX 1.5 5B
+    task: video-generation
+    modality: video
+    service: multimodal-legacy
+    family: image-video-legacy
+    endpoint: http://host.docker.internal:8001/generate/video/cogvideox-1-5-5b
+    mode: sync
+    license: apache-2.0
+    source_repo: THUDM/CogVideoX1.5-5B
+    implemented: true
+    fields:
+      prompt: { type: string, required: true, max_length: 4000 }
+      negative_prompt: { type: string, required: false, max_length: 4000 }
+      width: { type: integer, default: 1360, min: 256, max: 1360 }
+      height: { type: integer, default: 768, min: 256, max: 1360 }
+      num_frames: { type: integer, default: 81, min: 8, max: 161 }
+      num_inference_steps: { type: integer, default: 50, min: 1, max: 80 }
+      guidance_scale: { type: number, default: 6.0, min: 0.0, max: 20.0 }
+      random_seed: { type: boolean, default: true }
+      seed: { type: integer, required: false, min: 0, max: 2147483647 }
+
+  mochi-1-preview:
+    display_name: Mochi 1 Preview
+    task: video-generation
+    modality: video
+    service: multimodal-legacy
+    family: image-video-legacy
+    endpoint: http://host.docker.internal:8001/generate/video/mochi-1
+    mode: sync
+    license: apache-2.0
+    source_repo: genmo/mochi-1-preview
+    implemented: true
+    fields:
+      prompt: { type: string, required: true, max_length: 4000 }
+      negative_prompt: { type: string, required: false, max_length: 4000 }
+      width: { type: integer, default: 848, min: 256, max: 1024 }
+      height: { type: integer, default: 480, min: 256, max: 1024 }
+      num_frames: { type: integer, default: 84, min: 8, max: 163 }
+      num_inference_steps: { type: integer, default: 64, min: 1, max: 100 }
+      guidance_scale: { type: number, default: 4.5, min: 0.0, max: 20.0 }
+      random_seed: { type: boolean, default: true }
+      seed: { type: integer, required: false, min: 0, max: 2147483647 }
+
+  hunyuanvideo-t2v:
+    display_name: HunyuanVideo T2V
+    task: video-generation
+    modality: video
+    service: multimodal-legacy
+    family: image-video-legacy
+    endpoint: http://host.docker.internal:8001/generate/video/hunyuanvideo
+    mode: sync
+    license: tencent-hunyuan-community
+    commercial_use: "yes"
+    source_repo: tencent/HunyuanVideo
+    implemented: true
+    fields:
+      prompt: { type: string, required: true, max_length: 4000 }
+      negative_prompt: { type: string, required: false, max_length: 4000 }
+      width: { type: integer, default: 720, min: 256, max: 1280 }
+      height: { type: integer, default: 1280, min: 256, max: 1280 }
+      num_frames: { type: integer, default: 129, min: 8, max: 129 }
+      num_inference_steps: { type: integer, default: 30, min: 1, max: 60 }
+      guidance_scale: { type: number, default: 6.0, min: 0.0, max: 20.0 }
+      random_seed: { type: boolean, default: true }
+      seed: { type: integer, required: false, min: 0, max: 2147483647 }
+
+  animatediff-v3:
+    display_name: AnimateDiff v3 (SD1.5 Motion)
+    task: video-generation
+    modality: video
+    service: multimodal-legacy
+    family: image-video-legacy
+    endpoint: http://host.docker.internal:8001/generate/video/animatediff
+    mode: sync
+    license: apache-2.0
+    source_repo: guoyww/animatediff-motion-adapter-v1-5-3
+    implemented: true
+    fields:
+      prompt: { type: string, required: true, max_length: 4000 }
+      negative_prompt: { type: string, required: false, max_length: 4000 }
+      width: { type: integer, default: 512, min: 256, max: 1024 }
+      height: { type: integer, default: 512, min: 256, max: 1024 }
+      num_frames: { type: integer, default: 16, min: 8, max: 64 }
+      num_inference_steps: { type: integer, default: 25, min: 1, max: 60 }
+      guidance_scale: { type: number, default: 7.5, min: 0.0, max: 20.0 }
+      random_seed: { type: boolean, default: true }
+      seed: { type: integer, required: false, min: 0, max: 2147483647 }
+
+  zeroscope-v2-576w:
+    display_name: Zeroscope v2 576w
+    task: video-generation
+    modality: video
+    service: multimodal-legacy
+    family: image-video-legacy
+    endpoint: http://host.docker.internal:8001/generate/video/zeroscope
+    mode: sync
+    license: cc-by-4.0
+    source_repo: cerspense/zeroscope_v2_576w
+    implemented: true
+    fields:
+      prompt: { type: string, required: true, max_length: 4000 }
+      negative_prompt: { type: string, required: false, max_length: 4000 }
+      width: { type: integer, default: 576, min: 256, max: 1024 }
+      height: { type: integer, default: 320, min: 256, max: 1024 }
+      num_frames: { type: integer, default: 24, min: 8, max: 64 }
+      num_inference_steps: { type: integer, default: 40, min: 1, max: 80 }
+      guidance_scale: { type: number, default: 9.0, min: 0.0, max: 20.0 }
+      random_seed: { type: boolean, default: true }
+      seed: { type: integer, required: false, min: 0, max: 2147483647 }
+
+  modelscope-t2v:
+    display_name: ModelScope Text-to-Video
+    task: video-generation
+    modality: video
+    service: multimodal-legacy
+    family: image-video-legacy
+    endpoint: http://host.docker.internal:8001/generate/video/modelscope
+    mode: sync
+    license: cc-by-nc-4.0
+    commercial_use: "no"
+    source_repo: ali-vilab/text-to-video-ms-1.7b
+    implemented: false
+    fields:
+      prompt: { type: string, required: true, max_length: 4000 }
+      num_frames: { type: integer, default: 16, min: 8, max: 64 }
+      num_inference_steps: { type: integer, default: 25, min: 1, max: 60 }
+      guidance_scale: { type: number, default: 9.0, min: 0.0, max: 20.0 }
+      random_seed: { type: boolean, default: true }
+      seed: { type: integer, required: false, min: 0, max: 2147483647 }
+
+  wan21-t2v-1.3b-diffusers:
+    display_name: Wan2.1 T2V 1.3B (Diffusers)
+    task: video-generation
+    modality: video
+    service: multimodal-legacy
+    family: image-video-legacy
+    endpoint: http://host.docker.internal:8001/generate/video/wan-1.3b-diffusers
+    mode: sync
+    license: apache-2.0
+    source_repo: Wan-AI/Wan2.1-T2V-1.3B-Diffusers
+    implemented: true
+    fields:
+      prompt: { type: string, required: true, max_length: 4000 }
+      negative_prompt: { type: string, required: false, max_length: 4000 }
+      width: { type: integer, default: 832, min: 256, max: 1024 }
+      height: { type: integer, default: 480, min: 256, max: 1024 }
+      num_frames: { type: integer, default: 81, min: 8, max: 81 }
+      num_inference_steps: { type: integer, default: 50, min: 1, max: 60 }
+      guidance_scale: { type: number, default: 5.0, min: 0.0, max: 20.0 }
+      random_seed: { type: boolean, default: true }
+      seed: { type: integer, required: false, min: 0, max: 2147483647 }
+
+  ltx-video-097-distilled:
+    display_name: LTX-Video 0.9.7 Distilled
+    task: video-generation
+    modality: video
+    service: multimodal-legacy
+    family: image-video-legacy
+    endpoint: http://host.docker.internal:8001/generate/video/ltx-distilled
+    mode: sync
+    license: openrail++
+    source_repo: Lightricks/LTX-Video-0.9.7-distilled
+    implemented: true
+    fields:
+      prompt: { type: string, required: true, max_length: 4000 }
+      negative_prompt: { type: string, required: false, max_length: 4000 }
+      width: { type: integer, default: 768, min: 256, max: 1280 }
+      height: { type: integer, default: 512, min: 256, max: 1280 }
+      num_frames: { type: integer, default: 97, min: 8, max: 257 }
+      num_inference_steps: { type: integer, default: 8, min: 1, max: 40 }
+      guidance_scale: { type: number, default: 1.0, min: 0.0, max: 25.0 }
+      random_seed: { type: boolean, default: true }
+      seed: { type: integer, required: false, min: 0, max: 2147483647 }
+
+  wan21-flf2v-14b-720p:
+    display_name: Wan2.1 FLF2V 14B 720P
+    task: video-generation
+    modality: video
+    service: multimodal-legacy
+    family: image-video-legacy
+    endpoint: http://host.docker.internal:8001/generate/video/wan-flf2v-14b
+    mode: sync
+    license: apache-2.0
+    source_repo: Wan-AI/Wan2.1-FLF2V-14B-720P-Diffusers
+    implemented: true
+    fields:
+      prompt: { type: string, required: true, max_length: 4000 }
+      image: { type: string, required: true }
+      last_image: { type: string, required: true }
+      negative_prompt: { type: string, required: false, max_length: 4000 }
+      width: { type: integer, default: 1280, min: 256, max: 1280 }
+      height: { type: integer, default: 720, min: 256, max: 1280 }
+      num_frames: { type: integer, default: 81, min: 8, max: 81 }
+      num_inference_steps: { type: integer, default: 40, min: 1, max: 60 }
+      guidance_scale: { type: number, default: 5.5, min: 0.0, max: 20.0 }
+      random_seed: { type: boolean, default: true }
+      seed: { type: integer, required: false, min: 0, max: 2147483647 }
 
   kokoro-82m:
     display_name: Kokoro-82M
@@ -1275,4 +2011,145 @@ models:
       text: { type: string, required: true, max_length: 12000 }
       speaker: { type: integer, default: 0, min: 0, max: 10 }
       max_audio_length_ms: { type: integer, default: 10000, min: 1000, max: 30000 }
+      format: { type: string, default: wav, enum: [wav] }
+
+  # ===========================================================================
+  # Commercially-usable audio models added to reach >=20 per category.
+  # Ranked by Hugging Face download popularity. implemented:false until runner.
+  # ===========================================================================
+  parler-tts-mini-v1:
+    display_name: Parler-TTS Mini v1
+    modality: text-to-speech
+    service: audio-parler
+    family: audio-parler
+    endpoint: http://audio-parler:8111/generate
+    license: apache-2.0
+    source_repo: parler-tts/parler-tts-mini-v1
+    commercial_use: "yes"
+    implemented: true
+    fields:
+      text: { type: string, required: true, max_length: 12000 }
+      description: { type: string, required: false, max_length: 2000 }
+      format: { type: string, default: wav, enum: [wav] }
+
+  parler-tts-large-v1:
+    display_name: Parler-TTS Large v1
+    modality: text-to-speech
+    service: audio-parler
+    family: audio-parler
+    endpoint: http://audio-parler:8111/generate
+    license: apache-2.0
+    source_repo: parler-tts/parler-tts-large-v1
+    commercial_use: "yes"
+    implemented: true
+    fields:
+      text: { type: string, required: true, max_length: 12000 }
+      description: { type: string, required: false, max_length: 2000 }
+      format: { type: string, default: wav, enum: [wav] }
+
+  vits-ljs:
+    display_name: VITS (LJSpeech)
+    modality: text-to-speech
+    service: audio-legacy
+    family: audio-legacy
+    endpoint: http://audio-legacy:8002/generate/tts/vits-ljs
+    license: mit
+    source_repo: kakao-enterprise/vits-ljs
+    commercial_use: "yes"
+    implemented: true
+    fields:
+      text: { type: string, required: true, max_length: 12000 }
+      format: { type: string, default: wav, enum: [wav] }
+
+  musicgen-small:
+    display_name: MusicGen Small
+    modality: text-to-audio
+    service: audio-legacy
+    family: audio-legacy
+    endpoint: http://audio-legacy:8002/generate/audio/musicgen-small
+    license: cc-by-nc-4.0
+    commercial_use: "no"
+    source_repo: facebook/musicgen-small
+    implemented: false
+    fields:
+      prompt: { type: string, required: true, max_length: 4000 }
+      duration_seconds: { type: number, default: 8.0, min: 1.0, max: 30.0 }
+      guidance_scale: { type: number, default: 3.0, min: 0.0, max: 10.0 }
+      format: { type: string, default: wav, enum: [wav] }
+
+  whisper-large-v3:
+    display_name: Whisper Large v3 (ASR)
+    task: automatic-speech-recognition
+    modality: speech-to-text
+    service: audio-legacy
+    family: audio-legacy
+    endpoint: http://audio-legacy:8002/generate/asr/whisper-large-v3
+    license: apache-2.0
+    source_repo: openai/whisper-large-v3
+    commercial_use: "yes"
+    implemented: true
+    fields:
+      audio: { type: string, required: true }
+      language: { type: string, required: false, max_length: 8 }
+      task: { type: string, default: transcribe, enum: [transcribe, translate] }
+      format: { type: string, default: json, enum: [json] }
+
+  distil-whisper-large-v3:
+    display_name: Distil-Whisper Large v3 (ASR)
+    task: automatic-speech-recognition
+    modality: speech-to-text
+    service: audio-legacy
+    family: audio-legacy
+    endpoint: http://audio-legacy:8002/generate/asr/distil-whisper-large-v3
+    license: mit
+    source_repo: distil-whisper/distil-large-v3
+    commercial_use: "yes"
+    implemented: true
+    fields:
+      audio: { type: string, required: true }
+      language: { type: string, required: false, max_length: 8 }
+      format: { type: string, default: json, enum: [json] }
+
+  vibevoice-1-5b:
+    display_name: VibeVoice 1.5B
+    modality: text-to-speech
+    service: audio-legacy
+    family: audio-legacy
+    endpoint: http://audio-legacy:8002/generate/tts/vibevoice-1-5b
+    license: mit
+    source_repo: microsoft/VibeVoice-1.5B
+    commercial_use: "no"
+    implemented: false
+    fields:
+      text: { type: string, required: true, max_length: 12000 }
+      voice: { type: string, required: false, max_length: 64 }
+      format: { type: string, default: wav, enum: [wav] }
+
+  dia-1-6b:
+    display_name: Dia 1.6B Dialogue TTS
+    modality: text-to-speech
+    service: audio-dia
+    family: audio-dia
+    endpoint: http://audio-dia:8112/generate
+    license: apache-2.0
+    source_repo: nari-labs/Dia-1.6B
+    commercial_use: "yes"
+    implemented: true
+    fields:
+      text: { type: string, required: true, max_length: 12000 }
+      audio_prompt_path: { type: string, required: false, max_length: 500 }
+      format: { type: string, default: wav, enum: [wav] }
+
+  cosyvoice2-0.5b:
+    display_name: CosyVoice2 0.5B
+    modality: text-to-speech
+    service: audio-cosyvoice
+    family: audio-cosyvoice
+    endpoint: http://audio-cosyvoice:8113/generate
+    license: apache-2.0
+    source_repo: FunAudioLLM/CosyVoice2-0.5B
+    commercial_use: "yes"
+    implemented: true
+    fields:
+      text: { type: string, required: true, max_length: 12000 }
       format: { type: string, default: wav, enum: [wav] }

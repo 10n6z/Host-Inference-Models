@@ -24,6 +24,7 @@ if str(SERVICES_ROOT) not in sys.path:
 
 from common.responses import build_failed_response, build_success_response, utc_now_iso
 from adapters import ollama
+from licensing import resolve_license
 
 load_dotenv(REPO_ROOT / "servers" / ".env")
 load_dotenv(REPO_ROOT / ".env")
@@ -62,6 +63,7 @@ def _registry_services() -> dict[str, dict[str, Any]]:
 def _models_payload() -> list[dict[str, Any]]:
     models = []
     for model_id, entry in sorted(_registry_models().items()):
+        license_info = resolve_license(model_id, entry)
         models.append(
             {
                 "id": model_id,
@@ -73,6 +75,12 @@ def _models_payload() -> list[dict[str, Any]]:
                 "family": entry.get("family"),
                 "endpoint": entry.get("endpoint"),
                 "fields": entry.get("fields") or {},
+                "license": license_info["license"],
+                "commercial_use": license_info["commercial_use"],
+                # When false, the catalog entry is published (for audit/coverage)
+                # but no GPU-side runner is wired yet; /generate will 501.
+                "implemented": bool(entry.get("implemented", True)),
+                "source_repo": entry.get("source_repo"),
             }
         )
     return models
@@ -288,6 +296,21 @@ async def generate(request: Request):
         )
         return JSONResponse(status_code=404, content=payload)
 
+    if registry_entry.get("implemented", True) is False:
+        payload = build_failed_response(
+            model=model_id,
+            service=registry_entry.get("service", "model-gateway"),
+            family=registry_entry.get("family", "model-gateway"),
+            error_type="NotImplemented",
+            message=(
+                f"Model '{model_id}' is published in the catalog but its GPU-side "
+                "runner is not yet wired. Implement the runner and set "
+                "implemented: true in registry.yaml."
+            ),
+            request_id=request_id,
+        )
+        return JSONResponse(status_code=501, content=payload)
+
     target_endpoint = registry_entry["endpoint"]
     family = registry_entry.get("family", registry_entry.get("service", "unknown"))
     service_name = registry_entry.get("service", "unknown")
@@ -424,7 +447,7 @@ async def generate(request: Request):
     return JSONResponse(status_code=200, content=success_payload)
 
 
-ALLOWED_REF_AUDIO_EXT = {".wav", ".flac"}
+ALLOWED_REF_AUDIO_EXT = {".wav", ".flac", ".mp3"}
 
 
 @app.post("/uploads/audio")
@@ -446,7 +469,7 @@ async def upload_audio(request: Request, file: UploadFile = File(...)):
                 "success": False,
                 "error": {
                     "code": "UNSUPPORTED_MEDIA_TYPE",
-                    "message": "Only .wav or .flac reference audio is accepted.",
+                    "message": "Only .wav, .flac, or .mp3 reference audio is accepted.",
                     "details": None,
                 },
             },

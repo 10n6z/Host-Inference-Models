@@ -35,7 +35,7 @@ class E2TTSRunner:
 
         from f5_tts.api import F5TTS
 
-        self.model = F5TTS(model="E2TTS_Base", ckpt_file="", device="cpu")
+        self.model = F5TTS(model="E2TTS_Base", ckpt_file="", device=os.getenv("DEVICE", "cpu"))
         self.sample_rate = 24000
 
     def generate(

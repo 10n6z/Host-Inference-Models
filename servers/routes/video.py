@@ -5,6 +5,9 @@ entry to `model_registry()`, and add a `@router.post(...)` endpoint.
 """
 from __future__ import annotations
 
+import base64
+import binascii
+import io
 import mimetypes
 import time
 import uuid
@@ -27,6 +30,7 @@ from config import (
     _run_with_timeout,
 )
 from common import (
+    APIError,
     StrictRequestModel,
     _check_output_exists,
     _field_spec,
@@ -34,8 +38,17 @@ from common import (
     _utc_now_iso,
 )
 
+from runners.text_to_video.animatediff_runner import AnimateDiffV3Runner
+from runners.text_to_video.cogvideox5b_runner import CogVideoX5BRunner
 from runners.text_to_video.cogvideox_runner import CogVideoXRunner
+from runners.text_to_video.hunyuanvideo_runner import HunyuanVideoRunner
+from runners.text_to_video.ltx_video_expanded_runner import LTXVideo13BRunner, LTXVideoDistilledRunner
 from runners.text_to_video.ltx_video_runner import LTXVideoRunner
+from runners.text_to_video.mochi1_runner import Mochi1Runner
+from runners.text_to_video.cogvideox15_runner import CogVideoX15Runner
+from runners.text_to_video.wan_expanded_runner import Wan13DiffusersRunner, Wan22T2VRunner
+from runners.text_to_video.wan_i2v_runner import WanFLF2V14BRunner, WanI2V14BRunner
+from runners.text_to_video.zeroscope_runner import ZeroscopeRunner
 from runners.text_to_video.skyreels_v2_df_13b_runner import SkyReelsV2DF13BRunner
 from runners.text_to_video.wan_t2v_14b_runner import WanT2V14BRunner
 from runners.text_to_video.wan_t2v_runner import WanT2VRunner
@@ -47,6 +60,36 @@ wan_t2v_14b_runner = WanT2V14BRunner()
 skyreels_v2_df_13b_runner = SkyReelsV2DF13BRunner()
 cogvideox_runner = CogVideoXRunner()
 ltx_video_runner = LTXVideoRunner()
+cogvideox5b_runner = CogVideoX5BRunner()
+mochi1_runner = Mochi1Runner()
+hunyuanvideo_runner = HunyuanVideoRunner()
+ltx_video_13b_runner = LTXVideo13BRunner()
+ltx_video_distilled_runner = LTXVideoDistilledRunner()
+cogvideox15_runner = CogVideoX15Runner()
+wan13_diffusers_runner = Wan13DiffusersRunner()
+wan22_t2v_runner = Wan22T2VRunner()
+zeroscope_runner = ZeroscopeRunner()
+wan_i2v_14b_runner = WanI2V14BRunner()
+wan_flf2v_14b_runner = WanFLF2V14BRunner()
+animatediff_v3_runner = AnimateDiffV3Runner()
+
+
+def _decode_input_image(raw: str):
+    from PIL import Image
+
+    payload = raw.strip()
+    if payload.startswith("data:"):
+        _, _, payload = payload.partition(",")
+    try:
+        data = base64.b64decode(payload, validate=True)
+    except (binascii.Error, ValueError) as exc:
+        raise APIError("VALIDATION_ERROR", "image: invalid base64 data.", 422) from exc
+    if not data:
+        raise APIError("VALIDATION_ERROR", "image: decoded image is empty.", 422)
+    try:
+        return Image.open(io.BytesIO(data)).convert("RGB")
+    except Exception as exc:
+        raise APIError("VALIDATION_ERROR", "image: could not decode image bytes.", 422) from exc
 
 
 class VideoSeedMixin(StrictRequestModel):
@@ -111,6 +154,92 @@ class LTXVideoRequest(VideoRequestBase):
     guidance_scale: float = Field(3.0, ge=0.0, le=25.0)
     decode_timestep: float = Field(0.03, ge=0.0, le=1.0)
     decode_noise_scale: float = Field(0.025, ge=0.0, le=1.0)
+
+
+class CogVideoX5BRequest(VideoRequestBase):
+    width: int = Field(720, ge=VIDEO_MIN_SIZE, le=VIDEO_MAX_SIZE, multiple_of=VIDEO_SIZE_STEP)
+    height: int = Field(480, ge=VIDEO_MIN_SIZE, le=VIDEO_MAX_SIZE, multiple_of=VIDEO_SIZE_STEP)
+    num_frames: int = Field(49, ge=8, le=49)
+    num_inference_steps: int = Field(50, ge=1, le=80)
+    guidance_scale: float = Field(6.0, ge=0.0, le=20.0)
+
+
+class Mochi1Request(VideoRequestBase):
+    width: int = Field(848, ge=VIDEO_MIN_SIZE, le=VIDEO_MAX_SIZE, multiple_of=VIDEO_SIZE_STEP)
+    height: int = Field(480, ge=VIDEO_MIN_SIZE, le=VIDEO_MAX_SIZE, multiple_of=VIDEO_SIZE_STEP)
+    num_frames: int = Field(84, ge=8, le=163)
+    num_inference_steps: int = Field(64, ge=1, le=100)
+    guidance_scale: float = Field(4.5, ge=0.0, le=20.0)
+
+
+class HunyuanVideoRequest(VideoRequestBase):
+    width: int = Field(720, ge=VIDEO_MIN_SIZE, le=VIDEO_MAX_SIZE, multiple_of=VIDEO_SIZE_STEP)
+    height: int = Field(1280, ge=VIDEO_MIN_SIZE, le=1280, multiple_of=VIDEO_SIZE_STEP)
+    num_frames: int = Field(129, ge=8, le=129)
+    num_inference_steps: int = Field(30, ge=1, le=60)
+    guidance_scale: float = Field(6.0, ge=0.0, le=20.0)
+
+
+class LTXVideo13BRequest(LTXVideoRequest):
+    width: int = Field(768, ge=VIDEO_MIN_SIZE, le=1280, multiple_of=VIDEO_SIZE_STEP)
+    height: int = Field(512, ge=VIDEO_MIN_SIZE, le=1280, multiple_of=VIDEO_SIZE_STEP)
+    num_frames: int = Field(121, ge=8, le=257)
+
+
+class LTXVideoDistilledRequest(LTXVideoRequest):
+    width: int = Field(768, ge=VIDEO_MIN_SIZE, le=1280, multiple_of=VIDEO_SIZE_STEP)
+    height: int = Field(512, ge=VIDEO_MIN_SIZE, le=1280, multiple_of=VIDEO_SIZE_STEP)
+    num_frames: int = Field(97, ge=8, le=257)
+    num_inference_steps: int = Field(8, ge=1, le=40)
+    guidance_scale: float = Field(1.0, ge=0.0, le=25.0)
+
+
+class CogVideoX15Request(CogVideoX5BRequest):
+    width: int = Field(1360, ge=VIDEO_MIN_SIZE, le=1360, multiple_of=VIDEO_SIZE_STEP)
+    height: int = Field(768, ge=VIDEO_MIN_SIZE, le=1360, multiple_of=VIDEO_SIZE_STEP)
+    num_frames: int = Field(81, ge=8, le=161)
+
+
+class Wan13DiffusersRequest(WanT2V14BRequest):
+    pass
+
+
+class Wan22T2VRequest(WanT2V14BRequest):
+    width: int = Field(1280, ge=VIDEO_MIN_SIZE, le=1280, multiple_of=VIDEO_SIZE_STEP)
+    height: int = Field(720, ge=VIDEO_MIN_SIZE, le=1280, multiple_of=VIDEO_SIZE_STEP)
+    num_frames: int = Field(81, ge=8, le=121)
+
+
+class WanI2V14BRequest(VideoRequestBase):
+    image: str = Field(..., min_length=1)
+    width: int = Field(832, ge=VIDEO_MIN_SIZE, le=VIDEO_MAX_SIZE, multiple_of=VIDEO_SIZE_STEP)
+    height: int = Field(480, ge=VIDEO_MIN_SIZE, le=VIDEO_MAX_SIZE, multiple_of=VIDEO_SIZE_STEP)
+    num_frames: int = Field(81, ge=8, le=81)
+    num_inference_steps: int = Field(40, ge=1, le=60)
+    guidance_scale: float = Field(5.0, ge=0.0, le=20.0)
+
+
+class WanFLF2V14BRequest(WanI2V14BRequest):
+    last_image: str = Field(..., min_length=1)
+    width: int = Field(1280, ge=VIDEO_MIN_SIZE, le=1280, multiple_of=VIDEO_SIZE_STEP)
+    height: int = Field(720, ge=VIDEO_MIN_SIZE, le=1280, multiple_of=VIDEO_SIZE_STEP)
+    guidance_scale: float = Field(5.5, ge=0.0, le=20.0)
+
+
+class AnimateDiffV3Request(VideoRequestBase):
+    width: int = Field(512, ge=VIDEO_MIN_SIZE, le=VIDEO_MAX_SIZE, multiple_of=VIDEO_SIZE_STEP)
+    height: int = Field(512, ge=VIDEO_MIN_SIZE, le=VIDEO_MAX_SIZE, multiple_of=VIDEO_SIZE_STEP)
+    num_frames: int = Field(16, ge=8, le=64)
+    num_inference_steps: int = Field(25, ge=1, le=60)
+    guidance_scale: float = Field(7.5, ge=0.0, le=20.0)
+
+
+class ZeroscopeRequest(VideoRequestBase):
+    width: int = Field(576, ge=VIDEO_MIN_SIZE, le=VIDEO_MAX_SIZE, multiple_of=VIDEO_SIZE_STEP)
+    height: int = Field(320, ge=VIDEO_MIN_SIZE, le=VIDEO_MAX_SIZE, multiple_of=VIDEO_SIZE_STEP)
+    num_frames: int = Field(24, ge=8, le=64)
+    num_inference_steps: int = Field(40, ge=1, le=80)
+    guidance_scale: float = Field(9.0, ge=0.0, le=20.0)
 
 
 def _video_response(model_id: str, output_id: str, output_path, parameters_used: dict[str, Any], duration_ms: int) -> dict[str, Any]:
@@ -496,3 +625,157 @@ def generate_ltx_video(req: LTXVideoRequest):
         },
         int((time.perf_counter() - start) * 1000),
     )
+
+
+def _video_generate(runner, model_id: str, req, fps: int = 8, timeout_seconds: int = 1800):
+    output_id = f"vid_{uuid.uuid4().hex}.mp4"
+    output_path = VIDEO_OUTPUT_DIR / output_id
+    seed_used = _resolve_seed(req.random_seed, req.seed)
+    start = time.perf_counter()
+
+    try:
+        _run_with_timeout(
+            runner.generate,
+            prompt=req.prompt,
+            negative_prompt=req.negative_prompt,
+            output_path=str(output_path),
+            width=req.width,
+            height=req.height,
+            num_frames=req.num_frames,
+            steps=req.num_inference_steps,
+            guidance_scale=req.guidance_scale,
+            seed=seed_used,
+            fps=fps,
+            timeout_seconds=timeout_seconds,
+        )
+        _check_output_exists(output_path)
+    except Exception as exc:
+        raise _map_runtime_error(exc)
+
+    return _video_response(
+        model_id,
+        output_id,
+        output_path,
+        {
+            "prompt": req.prompt,
+            "negative_prompt": req.negative_prompt,
+            "width": req.width,
+            "height": req.height,
+            "num_frames": req.num_frames,
+            "num_inference_steps": req.num_inference_steps,
+            "guidance_scale": req.guidance_scale,
+            "seed": seed_used,
+            "random_seed": req.random_seed,
+            "fps": fps,
+        },
+        int((time.perf_counter() - start) * 1000),
+    )
+
+
+@router.post("/generate/video/cogvideox-5b")
+def generate_cogvideox5b(req: CogVideoX5BRequest):
+    return _video_generate(cogvideox5b_runner, "cogvideox-5b", req, fps=8)
+
+
+@router.post("/generate/video/mochi-1")
+def generate_mochi1(req: Mochi1Request):
+    return _video_generate(mochi1_runner, "mochi-1-preview", req, fps=24)
+
+
+@router.post("/generate/video/hunyuanvideo")
+def generate_hunyuanvideo(req: HunyuanVideoRequest):
+    return _video_generate(hunyuanvideo_runner, "hunyuanvideo-t2v", req, fps=24)
+
+
+@router.post("/generate/video/ltx-video-13b")
+def generate_ltx_video_13b(req: LTXVideo13BRequest):
+    return _video_generate(ltx_video_13b_runner, "ltx-video-13b-097", req, fps=24)
+
+
+@router.post("/generate/video/ltx-distilled")
+def generate_ltx_video_distilled(req: LTXVideoDistilledRequest):
+    return _video_generate(ltx_video_distilled_runner, "ltx-video-097-distilled", req, fps=24)
+
+
+@router.post("/generate/video/cogvideox-1-5-5b")
+def generate_cogvideox15(req: CogVideoX15Request):
+    return _video_generate(cogvideox15_runner, "cogvideox-1-5-5b", req, fps=8)
+
+
+@router.post("/generate/video/wan-1.3b-diffusers")
+def generate_wan13_diffusers(req: Wan13DiffusersRequest):
+    return _video_generate(wan13_diffusers_runner, "wan21-t2v-1.3b-diffusers", req, fps=16)
+
+
+@router.post("/generate/video/wan22-t2v")
+def generate_wan22_t2v(req: Wan22T2VRequest):
+    return _video_generate(wan22_t2v_runner, "wan22-t2v-a14b", req, fps=16)
+
+
+def _video_i2v_generate(runner, model_id: str, req, fps: int = 16, timeout_seconds: int = 1800):
+    output_id = f"vid_{uuid.uuid4().hex}.mp4"
+    output_path = VIDEO_OUTPUT_DIR / output_id
+    seed_used = _resolve_seed(req.random_seed, req.seed)
+    input_image = _decode_input_image(req.image)
+    last_image = _decode_input_image(req.last_image) if hasattr(req, "last_image") else None
+    start = time.perf_counter()
+
+    try:
+        _run_with_timeout(
+            runner.generate,
+            prompt=req.prompt,
+            image=input_image,
+            last_image=last_image,
+            negative_prompt=req.negative_prompt,
+            output_path=str(output_path),
+            width=req.width,
+            height=req.height,
+            num_frames=req.num_frames,
+            steps=req.num_inference_steps,
+            guidance_scale=req.guidance_scale,
+            seed=seed_used,
+            fps=fps,
+            timeout_seconds=timeout_seconds,
+        )
+        _check_output_exists(output_path)
+    except Exception as exc:
+        raise _map_runtime_error(exc)
+
+    return _video_response(
+        model_id,
+        output_id,
+        output_path,
+        {
+            "prompt": req.prompt,
+            "negative_prompt": req.negative_prompt,
+            "width": req.width,
+            "height": req.height,
+            "num_frames": req.num_frames,
+            "num_inference_steps": req.num_inference_steps,
+            "guidance_scale": req.guidance_scale,
+            "seed": seed_used,
+            "random_seed": req.random_seed,
+            "fps": fps,
+        },
+        int((time.perf_counter() - start) * 1000),
+    )
+
+
+@router.post("/generate/video/wan-i2v-14b")
+def generate_wan_i2v_14b(req: WanI2V14BRequest):
+    return _video_i2v_generate(wan_i2v_14b_runner, "wan21-i2v-14b-480p", req, fps=16)
+
+
+@router.post("/generate/video/wan-flf2v-14b")
+def generate_wan_flf2v_14b(req: WanFLF2V14BRequest):
+    return _video_i2v_generate(wan_flf2v_14b_runner, "wan21-flf2v-14b-720p", req, fps=16)
+
+
+@router.post("/generate/video/animatediff")
+def generate_animatediff_v3(req: AnimateDiffV3Request):
+    return _video_generate(animatediff_v3_runner, "animatediff-v3", req, fps=8)
+
+
+@router.post("/generate/video/zeroscope")
+def generate_zeroscope(req: ZeroscopeRequest):
+    return _video_generate(zeroscope_runner, "zeroscope-v2-576w", req, fps=8)

@@ -43,7 +43,7 @@ class OuteTTSRunner:
         config = outetts.HFModelConfig_v1(
             model_path=self.model_id,
             tokenizer_path=self.model_id,
-            device="cpu",
+            device=os.getenv("DEVICE", "cpu"),
             max_seq_length=4096,
         )
         self.interface = outetts.InterfaceHF("0.2", config)

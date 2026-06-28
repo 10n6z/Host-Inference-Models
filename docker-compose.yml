@@ -14,6 +14,7 @@ x-audio-volumes: &audio-volumes
   - ./model-cache:/models
   - ./models/hf:/models/hf
   - ./models/hf-cache:/models/huggingface
+  - /gpt-lab/long/models:/gpt-lab/long/models:ro
   - ${OUTPUTS_HOST_DIR:-./outputs}:/outputs
 
 services:
@@ -45,6 +46,9 @@ services:
       - audio-xtts
       - audio-csm
       - audio-legacy
+      - audio-parler
+      - audio-dia
+      - audio-cosyvoice
     networks:
       - model-server
 
@@ -177,6 +181,49 @@ services:
     environment:
       <<: *audio-environment
       AUDIO_PUBLIC_BASE_URL: http://audio-csm:8110
+    volumes: *audio-volumes
+    networks:
+      - model-server
+
+  audio-parler:
+    build:
+      context: .
+      dockerfile: services/audio-parler/Dockerfile
+    expose:
+      - "8111"
+    environment:
+      <<: *audio-environment
+      AUDIO_PUBLIC_BASE_URL: http://audio-parler:8111
+    volumes: *audio-volumes
+    networks:
+      - model-server
+
+  audio-dia:
+    build:
+      context: .
+      dockerfile: services/audio-dia/Dockerfile
+    expose:
+      - "8112"
+    environment:
+      <<: *audio-environment
+      DEVICE: cuda
+      AUDIO_PUBLIC_BASE_URL: http://audio-dia:8112
+      DIA_MODEL_PATH: /gpt-lab/long/models/text-to-speech/dia-1-6b
+    volumes: *audio-volumes
+    networks:
+      - model-server
+
+  audio-cosyvoice:
+    build:
+      context: .
+      dockerfile: services/audio-cosyvoice/Dockerfile
+    expose:
+      - "8113"
+    environment:
+      <<: *audio-environment
+      DEVICE: cuda
+      AUDIO_PUBLIC_BASE_URL: http://audio-cosyvoice:8113
+      COSYVOICE2_MODEL_PATH: /gpt-lab/long/models/text-to-speech/cosyvoice2-0.5b
     volumes: *audio-volumes
     networks:
       - model-server

@@ -23,7 +23,7 @@ class ChatterboxRunner:
 
         from chatterbox.tts import ChatterboxTTS
 
-        self.model = ChatterboxTTS.from_pretrained(device="cpu")
+        self.model = ChatterboxTTS.from_pretrained(device=os.getenv("DEVICE", "cpu"))
         self.sample_rate = self.model.sr
 
     def generate(

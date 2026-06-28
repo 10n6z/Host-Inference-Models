@@ -32,7 +32,10 @@ class KokoroONNXRunner:
         if not onnx_path.exists():
             raise FileNotFoundError(f"No ONNX model found in {self.model_dir / 'onnx'}")
 
-        self.session = ort.InferenceSession(str(onnx_path))
+        available = ort.get_available_providers()
+        provider_order = ["CUDAExecutionProvider", "CPUExecutionProvider"]
+        providers = [p for p in provider_order if p in available]
+        self.session = ort.InferenceSession(str(onnx_path), providers=providers)
 
         voices_path = self.model_dir / "voices-v1.0.bin"
         if voices_path.exists():
