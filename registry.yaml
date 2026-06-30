@@ -785,6 +785,27 @@ models:
       random_seed: { type: boolean, default: true }
       seed: { type: integer, required: false, min: 0, max: 2147483647 }
 
+  sd-1-5-inpainting:
+    display_name: Stable Diffusion 1.5 Inpainting
+    task: image-inpainting
+    modality: image
+    service: multimodal-legacy
+    family: image-video-legacy
+    endpoint: http://host.docker.internal:8001/generate/image/inpaint/sd15
+    mode: sync
+    fields:
+      prompt: { type: string, required: true, max_length: 4000 }
+      image: { type: image, required: true }
+      mask_image: { type: image, required: true }
+      negative_prompt: { type: string, required: false, max_length: 4000 }
+      width: { type: integer, default: 512, min: 512, max: 2048 }
+      height: { type: integer, default: 512, min: 512, max: 2048 }
+      steps: { type: integer, default: 30, min: 1, max: 60 }
+      guidance_scale: { type: number, default: 7.5, min: 0.0, max: 20.0 }
+      strength: { type: number, default: 1.0, min: 0.0, max: 1.0 }
+      random_seed: { type: boolean, default: true }
+      seed: { type: integer, required: false, min: 0, max: 2147483647 }
+
   qwen-image-edit-2509:
     display_name: Qwen-Image-Edit 2509
     task: image-editing

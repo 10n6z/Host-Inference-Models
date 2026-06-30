@@ -59,6 +59,7 @@ from runners.text_to_image.wuerstchen_v2 import WuerstchenV2Runner
 from runners.text_to_image.sd21 import SD21Runner
 from runners.text_to_image.sdxl_base import SDXLBaseRunner
 from runners.image_to_image.qwen_image_edit import QwenImageEditRunner
+from runners.image_to_image.sd15_inpaint import SD15InpaintRunner
 
 router = APIRouter()
 
@@ -67,6 +68,7 @@ sd35_runner = SD35MediumRunner()
 auraflow_runner = AuraFlowRunner()
 openflux_runner = OpenFluxRunner()
 qwen_image_edit_runner = QwenImageEditRunner()
+sd15_inpaint_runner = SD15InpaintRunner()
 sd15_runner = SD15Runner()
 sd21_runner = SD21Runner()
 sdxl_base_runner = SDXLBaseRunner()
@@ -164,6 +166,18 @@ class QwenImageEditRequest(ImageSeedMixin):
     guidance_scale: float = Field(1.0, ge=0.0, le=20.0)
     num_images: int = Field(1, ge=1, le=MAX_NUM_IMAGES)
 
+
+class SD15InpaintRequest(ImageSeedMixin):
+    prompt: str = Field(..., min_length=1, max_length=PROMPT_MAX_LENGTH)
+    image: str = Field(..., min_length=1)
+    mask_image: str = Field(..., min_length=1)
+    negative_prompt: Optional[str] = Field(default=None, max_length=PROMPT_MAX_LENGTH)
+    width: int = Field(512, ge=IMAGE_MIN_SIZE, le=IMAGE_MAX_SIZE, multiple_of=IMAGE_SIZE_STEP)
+    height: int = Field(512, ge=IMAGE_MIN_SIZE, le=IMAGE_MAX_SIZE, multiple_of=IMAGE_SIZE_STEP)
+    steps: int = Field(30, ge=1, le=60)
+    guidance_scale: float = Field(7.5, ge=0.0, le=20.0)
+    strength: float = Field(1.0, ge=0.0, le=1.0)
+    num_images: int = Field(1, ge=1, le=MAX_NUM_IMAGES)
 
 class SD15Request(ImageSeedMixin):
     prompt: str = Field(..., min_length=1, max_length=PROMPT_MAX_LENGTH)
@@ -416,6 +430,27 @@ def model_registry() -> list[dict[str, Any]]:
             },
         },
         {
+            "id": "sd-1-5-inpainting",
+            "displayName": "Stable Diffusion 1.5 Inpainting",
+            "modality": "image",
+            "task": "image-inpainting",
+            "endpoint": "/generate/image/inpaint/sd15",
+            "fields": {
+                "prompt": _field_spec("string", required=True, max_length=PROMPT_MAX_LENGTH),
+                "image": _field_spec("image", required=True, description="Base64-encoded base image to inpaint."),
+                "mask_image": _field_spec("image", required=True, description="Base64-encoded mask (white = regenerate, black = keep)."),
+                "negative_prompt": _field_spec("string", required=False, max_length=PROMPT_MAX_LENGTH),
+                "width": _field_spec("integer", default=512, minimum=IMAGE_MIN_SIZE, maximum=IMAGE_MAX_SIZE, step=IMAGE_SIZE_STEP),
+                "height": _field_spec("integer", default=512, minimum=IMAGE_MIN_SIZE, maximum=IMAGE_MAX_SIZE, step=IMAGE_SIZE_STEP),
+                "steps": _field_spec("integer", default=30, minimum=1, maximum=60),
+                "guidance_scale": _field_spec("number", default=7.5, minimum=0.0, maximum=20.0),
+                "strength": _field_spec("number", default=1.0, minimum=0.0, maximum=1.0),
+                "seed": _field_spec("integer", required=False, minimum=0, maximum=MAX_SEED),
+                "random_seed": _field_spec("boolean", default=True),
+                "num_images": _field_spec("integer", default=1, minimum=1, maximum=MAX_NUM_IMAGES),
+            },
+        },
+        {
             "id": "openflux-1",
             "displayName": "OpenFLUX.1",
             "modality": "image",
@@ -635,6 +670,54 @@ def generate_auraflow(req: AuraFlowRequest):
         int((time.perf_counter() - start) * 1000),
     )
 
+
+@router.post("/generate/image/inpaint/sd15")
+def generate_sd15_inpaint(req: SD15InpaintRequest):
+    output_id = f"img_{uuid.uuid4().hex}.png"
+    output_path = IMAGE_OUTPUT_DIR / output_id
+    seed_used = _resolve_seed(req.random_seed, req.seed)
+    base_image = _decode_input_image(req.image)
+    mask_image = _decode_input_image(req.mask_image)
+    start = time.perf_counter()
+
+    try:
+        _run_with_timeout(
+            sd15_inpaint_runner.generate,
+            prompt=req.prompt,
+            image=base_image,
+            mask_image=mask_image,
+            output_path=str(output_path),
+            negative_prompt=req.negative_prompt,
+            width=req.width,
+            height=req.height,
+            steps=req.steps,
+            guidance_scale=req.guidance_scale,
+            strength=req.strength,
+            seed=seed_used,
+            num_images=req.num_images,
+        )
+        _check_output_exists(output_path)
+    except Exception as exc:
+        raise _map_runtime_error(exc)
+
+    return _image_response(
+        "sd-1-5-inpainting",
+        output_id,
+        output_path,
+        {
+            "prompt": req.prompt,
+            "negative_prompt": req.negative_prompt,
+            "width": req.width,
+            "height": req.height,
+            "steps": req.steps,
+            "guidance_scale": req.guidance_scale,
+            "strength": req.strength,
+            "seed": seed_used,
+            "random_seed": req.random_seed,
+            "num_images": req.num_images,
+        },
+        int((time.perf_counter() - start) * 1000),
+    )
 
 @router.post("/generate/image/edit/qwen")
 def generate_qwen_image_edit(req: QwenImageEditRequest):
