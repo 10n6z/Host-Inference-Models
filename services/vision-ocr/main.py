@@ -31,6 +31,11 @@ from pydantic import BaseModel, ConfigDict, Field
 logger = logging.getLogger("vision-ocr")
 logging.basicConfig(level=os.environ.get("VISION_OCR_LOG_LEVEL", "info").upper())
 
+MAX_IMAGE_PIXELS = 25_000_000
+# Align Pillow's own bomb guard with our limit so a crafted image cannot decode
+# a buffer larger than we would accept.
+Image.MAX_IMAGE_PIXELS = MAX_IMAGE_PIXELS
+
 # PP-OCRv5's multilingual latin-script bundle covers English, Finnish, Swedish.
 DEFAULT_LANG = "latin"
 LANGUAGE_MAP = {
@@ -41,7 +46,6 @@ LANGUAGE_MAP = {
 }
 
 MAX_IMAGE_BYTES = 12 * 1024 * 1024
-MAX_IMAGE_PIXELS = 25_000_000
 
 _ocr_pool: dict[str, Any] = {}
 
@@ -53,10 +57,9 @@ def _get_ocr(lang: str):
     if lang not in _ocr_pool:
         logger.info("loading PaddleOCR model lang=%s", lang)
         _ocr_pool[lang] = PaddleOCR(
-            use_doc_orientation_classify=False,
-            use_doc_unwarping=False,
-            use_textline_orientation=True,
+            use_angle_cls=True,
             lang=lang,
+            show_log=False,
         )
     return _ocr_pool[lang]
 
@@ -107,12 +110,14 @@ def ocr(payload: OcrRequest) -> OcrResponse:
     lang = LANGUAGE_MAP.get(payload.language.lower(), DEFAULT_LANG)
     ocr_engine = _get_ocr(lang)
 
-    arr = np.array(image)  # RGB HxWx3
+    # PaddleOCR expects BGR channel order when handed a numpy array (OpenCV
+    # convention). PIL decodes RGB, so swap channels or R/B are inverted.
+    arr = np.array(image)[:, :, ::-1]  # RGB -> BGR, HxWx3
     try:
-        raw_results = ocr_engine.predict(arr)
+        raw_results = ocr_engine.ocr(arr, cls=True)
     except Exception as exc:  # pragma: no cover
         logger.exception("paddleocr inference failed")
-        raise HTTPException(status_code=500, detail=f"OCR inference failed: {exc}") from exc
+        raise HTTPException(status_code=500, detail="OCR inference failed") from exc
 
     words = _normalize_results(raw_results, image.size)
     return OcrResponse(words=words)
@@ -128,53 +133,70 @@ def _decode_image(b64: str) -> Image.Image:
     try:
         buffer = io.BytesIO(payload)
         image = Image.open(buffer)
+        # Reject by declared dimensions BEFORE load() allocates the pixel buffer,
+        # so a small file declaring huge dimensions cannot OOM the container.
+        if image.width * image.height > MAX_IMAGE_PIXELS:
+            raise HTTPException(status_code=413, detail="image: exceeds 25 MP")
         image.load()
+    except Image.DecompressionBombError as exc:
+        raise HTTPException(status_code=413, detail="image: exceeds pixel limit") from exc
     except (UnidentifiedImageError, OSError) as exc:
         raise HTTPException(status_code=400, detail="image: unable to decode") from exc
-    if image.width * image.height > MAX_IMAGE_PIXELS:
-        raise HTTPException(status_code=413, detail="image: exceeds 25 MP")
     image = ImageOps.exif_transpose(image).convert("RGB")
     return image
 
 
 def _normalize_results(raw: Any, size: tuple[int, int]) -> list[OcrWord]:
-    """Map PaddleOCR predict() output to the SW4E control-plane contract.
+    """Map PaddleOCR 2.7.x ``.ocr()`` output to the SW4E control-plane contract.
 
-    PaddleX/PaddleOCR 3.x returns a list of per-page result dicts with keys
-    ``rec_texts``, ``rec_scores``, and either ``rec_polys`` or ``dt_polys``.
-    Polygons are already in the original image's pixel space.
+    Output shape is a list per input image; each image is a list of
+    ``[box_poly, (text, confidence)]`` entries. Polygons are already in the
+    original image's pixel space.
     """
 
     width, height = size
-    if raw is None:
+    if not raw:
         return []
-    if not isinstance(raw, list):
-        raw = [raw]
 
     words: list[OcrWord] = []
+    dropped = 0
+    seen = 0
     for page in raw:
-        page_dict = page if isinstance(page, dict) else getattr(page, "json", None) or {}
-        # PaddleX result objects expose a .json attribute containing the dict
-        if hasattr(page, "json") and isinstance(page.json, dict):
-            page_dict = page.json.get("res") or page.json
-        texts = page_dict.get("rec_texts") or []
-        scores = page_dict.get("rec_scores") or []
-        polys = page_dict.get("rec_polys") or page_dict.get("dt_polys") or []
-        for text, score, poly in zip(texts, scores, polys):
-            if not text:
+        if not page:
+            continue
+        for entry in page:
+            seen += 1
+            if not entry or len(entry) < 2:
+                dropped += 1
                 continue
-            box = _poly_to_box(poly, width, height)
-            if box is None:
+            poly, recognized = entry[0], entry[1]
+            if not recognized or len(recognized) < 2:
+                dropped += 1
+                continue
+            text, score = recognized[0], recognized[1]
+            if not text:
+                dropped += 1
                 continue
             try:
                 confidence = float(score)
             except (TypeError, ValueError):
+                dropped += 1
                 continue
             if not (0.0 <= confidence <= 1.0):
+                dropped += 1
+                continue
+            box = _poly_to_box(poly, width, height)
+            if box is None:
+                dropped += 1
                 continue
             words.append(
                 OcrWord(text=str(text), confidence=confidence, box=WordBox(**box))
             )
+    if dropped:
+        # A high drop rate usually means the PaddleOCR output shape changed
+        # (e.g. a 2.7.x -> 3.x upgrade), which would otherwise look like
+        # "no text found" to the caller.
+        logger.warning("ocr dropped %d of %d entries during normalization", dropped, seen)
     return words
 
 

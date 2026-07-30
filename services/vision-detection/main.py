@@ -35,6 +35,9 @@ MODEL_ID = os.environ.get("VISION_DETECTION_MODEL_ID", "PekingU/rtdetr_r50vd")
 DEFAULT_THRESHOLD = 0.5
 MAX_IMAGE_BYTES = 12 * 1024 * 1024
 MAX_IMAGE_PIXELS = 25_000_000
+# Align Pillow's own bomb guard with our limit so a crafted image cannot decode
+# a buffer larger than we would accept.
+Image.MAX_IMAGE_PIXELS = MAX_IMAGE_PIXELS
 
 _model_state: dict[str, Any] = {}
 
@@ -106,19 +109,27 @@ def detect(payload: DetectRequest) -> DetectionResponse:
     model = _model_state["model"]
     device = _model_state["device"]
 
-    inputs = processor(images=image, return_tensors="pt").to(device)
-    with torch.inference_mode():
-        outputs = model(**inputs)
+    try:
+        inputs = processor(images=image, return_tensors="pt").to(device)
+        with torch.inference_mode():
+            outputs = model(**inputs)
 
-    height, width = image.height, image.width
-    target_sizes = torch.tensor([(height, width)], device=device)
-    results = processor.post_process_object_detection(
-        outputs,
-        target_sizes=target_sizes,
-        threshold=float(payload.confidence_threshold),
-    )
+        height, width = image.height, image.width
+        target_sizes = torch.tensor([(height, width)], device=device)
+        results = processor.post_process_object_detection(
+            outputs,
+            target_sizes=target_sizes,
+            threshold=float(payload.confidence_threshold),
+        )
+    except Exception as exc:  # pragma: no cover
+        logger.exception("rtdetr inference failed")
+        raise HTTPException(status_code=500, detail="detection inference failed") from exc
+
     if not results:
-        return DetectionResponse(detections=[])
+        # post_process_object_detection always returns one entry per image; an
+        # empty list is a contract break upstream, not "found nothing".
+        logger.warning("rtdetr post-process returned no result container")
+        raise HTTPException(status_code=502, detail="detection produced no result container")
     result = results[0]
 
     id2label = getattr(model.config, "id2label", {}) or {}
@@ -127,7 +138,10 @@ def detect(payload: DetectRequest) -> DetectionResponse:
     labels = result.get("labels")
     boxes = result.get("boxes")
     if scores is None or labels is None or boxes is None:
-        return DetectionResponse(detections=[])
+        # Missing keys mean the transformers post-process contract changed, not
+        # that the image was empty.
+        logger.warning("rtdetr post-process missing keys=%s", list(result.keys()))
+        raise HTTPException(status_code=502, detail="detection result missing expected keys")
 
     for score, label_idx, box in zip(scores.tolist(), labels.tolist(), boxes.tolist()):
         label_name = id2label.get(int(label_idx), str(int(label_idx)))
@@ -163,11 +177,15 @@ def _decode_image(b64: str) -> Image.Image:
     try:
         buffer = io.BytesIO(payload)
         image = Image.open(buffer)
+        # Reject by declared dimensions BEFORE load() allocates the pixel buffer,
+        # so a small file declaring huge dimensions cannot OOM the container.
+        if image.width * image.height > MAX_IMAGE_PIXELS:
+            raise HTTPException(status_code=413, detail="image: exceeds 25 MP")
         image.load()
+    except Image.DecompressionBombError as exc:
+        raise HTTPException(status_code=413, detail="image: exceeds pixel limit") from exc
     except (UnidentifiedImageError, OSError) as exc:
         raise HTTPException(status_code=400, detail="image: unable to decode") from exc
-    if image.width * image.height > MAX_IMAGE_PIXELS:
-        raise HTTPException(status_code=413, detail="image: exceeds 25 MP")
     image = ImageOps.exif_transpose(image).convert("RGB")
     return image
 
