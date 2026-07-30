@@ -2380,8 +2380,8 @@ models:
       text: { type: string, required: true, max_length: 12000 }
       format: { type: string, default: wav, enum: [wav] }
 
-  pp-ocr-v5:
-    display_name: PaddleOCR PP-OCRv5
+  pp-ocr-v4:
+    display_name: PaddleOCR PP-OCRv4
     task: ocr
     modality: image
     service: vision-ocr
