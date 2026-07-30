@@ -13,12 +13,6 @@ class FluxSchnellRunner:
         if self.pipe is not None:
             return self.pipe
 
-        self.pipe = FluxPipeline.from_pretrained(
-	    os.getenv("FLUX_MODEL_PATH"),
-            torch_dtype=torch.bfloat16,
-	    local_files_only=True,
-        )
-
         if has_multiple_cuda_devices():
             self.pipe = FluxPipeline.from_pretrained(
                 os.getenv("FLUX_MODEL_PATH"),
@@ -27,6 +21,11 @@ class FluxSchnellRunner:
                 device_map="balanced",
             )
         else:
+            self.pipe = FluxPipeline.from_pretrained(
+                os.getenv("FLUX_MODEL_PATH"),
+                torch_dtype=torch.bfloat16,
+                local_files_only=True,
+            )
             maybe_enable_multi_gpu(self.pipe)
 
         return self.pipe

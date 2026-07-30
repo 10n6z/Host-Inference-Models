@@ -1,7 +1,6 @@
 import os
 import torch
 from diffusers import QwenImageEditPlusPipeline
-from runners.gpu_utils import has_multiple_cuda_devices
 
 
 class QwenImageEditRunner:
@@ -29,12 +28,9 @@ class QwenImageEditRunner:
             self.model_path,
             torch_dtype=torch.bfloat16,
             local_files_only=True,
-            **({"device_map": "balanced"} if has_multiple_cuda_devices() else {}),
         )
+        self.pipe.enable_model_cpu_offload(gpu_id=0)
         self.pipe.set_progress_bar_config(disable=True)
-
-        if not has_multiple_cuda_devices():
-            self.pipe.enable_sequential_cpu_offload()
 
         return self.pipe
 

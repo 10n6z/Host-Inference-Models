@@ -6,7 +6,7 @@ x-audio-environment: &audio-environment
   TORCH_HOME: /models/torch
   XDG_CACHE_HOME: /models/cache
   MPLCONFIGDIR: /models/cache/matplotlib
-  HF_MODELS_ROOT: /models/hf
+  HF_MODELS_ROOT: /gpt-lab/long/models/hf-serving
   DEVICE: cpu
   INFERENCE_TIMEOUT_SECONDS: "600"
 
@@ -167,6 +167,7 @@ services:
     environment:
       <<: *audio-environment
       AUDIO_PUBLIC_BASE_URL: http://audio-xtts:8109
+      TTS_HOME: /models/tts
       COQUI_TOS_AGREED: "1"
     volumes: *audio-volumes
     networks:
@@ -239,7 +240,7 @@ services:
       AUDIO_PUBLIC_BASE_URL: http://audio-legacy:8002
       COSYVOICE2_MODEL_PATH: /models/text-to-speech/cosyvoice2-0.5b
       INDEXTTS2_MODEL_PATH: /models/text-to-speech/indextts-2
-      STABLE_AUDIO_MODEL_PATH: /models/text-to-audio/stable-audio-open-1.0
+      STABLE_AUDIO_MODEL_PATH: /gpt-lab/long/models/text-to-audio/stable-audio-open-1.0
     volumes: *audio-volumes
     networks:
       - model-server

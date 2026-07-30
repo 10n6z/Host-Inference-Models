@@ -81,8 +81,6 @@ models:
     family: text-generation
     endpoint: http://ollama:11434/api/generate
     mode: sync
-    license: deepseek-license
-    commercial_use: yes
     fields:
       prompt: { type: string, required: false, max_length: 12000 }
       messages: { type: array, required: false }
@@ -100,8 +98,6 @@ models:
     family: text-generation
     endpoint: http://ollama:11434/api/generate
     mode: sync
-    license: deepseek-license
-    commercial_use: yes
     fields:
       prompt: { type: string, required: false, max_length: 12000 }
       messages: { type: array, required: false }
@@ -119,8 +115,6 @@ models:
     family: text-generation
     endpoint: http://ollama:11434/api/generate
     mode: sync
-    license: deepseek-license
-    commercial_use: yes
     fields:
       prompt: { type: string, required: false, max_length: 12000 }
       messages: { type: array, required: false }
@@ -138,8 +132,6 @@ models:
     family: text-generation
     endpoint: http://ollama:11434/api/generate
     mode: sync
-    license: deepseek-license
-    commercial_use: yes
     fields:
       prompt: { type: string, required: false, max_length: 12000 }
       messages: { type: array, required: false }
@@ -157,8 +149,6 @@ models:
     family: text-generation
     endpoint: http://ollama:11434/api/generate
     mode: sync
-    license: gemma-terms
-    commercial_use: yes
     fields:
       prompt: { type: string, required: false, max_length: 12000 }
       messages: { type: array, required: false }
@@ -176,8 +166,6 @@ models:
     family: text-generation
     endpoint: http://ollama:11434/api/generate
     mode: sync
-    license: apache-2.0
-    commercial_use: yes
     fields:
       prompt: { type: string, required: false, max_length: 12000 }
       messages: { type: array, required: false }
@@ -195,8 +183,6 @@ models:
     family: text-generation
     endpoint: http://ollama:11434/api/generate
     mode: sync
-    license: apache-2.0
-    commercial_use: yes
     fields:
       prompt: { type: string, required: false, max_length: 12000 }
       messages: { type: array, required: false }
@@ -214,8 +200,6 @@ models:
     family: text-generation
     endpoint: http://ollama:11434/api/generate
     mode: sync
-    license: apache-2.0
-    commercial_use: yes
     fields:
       prompt: { type: string, required: false, max_length: 12000 }
       messages: { type: array, required: false }
@@ -233,8 +217,6 @@ models:
     family: text-generation
     endpoint: http://ollama:11434/api/generate
     mode: sync
-    license: llama-community
-    commercial_use: yes
     fields:
       prompt: { type: string, required: false, max_length: 12000 }
       messages: { type: array, required: false }
@@ -252,8 +234,6 @@ models:
     family: text-generation
     endpoint: http://ollama:11434/api/generate
     mode: sync
-    license: llama-community
-    commercial_use: yes
     fields:
       prompt: { type: string, required: false, max_length: 12000 }
       messages: { type: array, required: false }
@@ -271,8 +251,6 @@ models:
     family: text-generation
     endpoint: http://ollama:11434/api/generate
     mode: sync
-    license: llama-community
-    commercial_use: yes
     fields:
       prompt: { type: string, required: false, max_length: 12000 }
       messages: { type: array, required: false }
@@ -290,8 +268,6 @@ models:
     family: text-generation
     endpoint: http://ollama:11434/api/generate
     mode: sync
-    license: apache-2.0
-    commercial_use: yes
     fields:
       prompt: { type: string, required: false, max_length: 12000 }
       messages: { type: array, required: false }
@@ -309,8 +285,6 @@ models:
     family: text-generation
     endpoint: http://ollama:11434/api/generate
     mode: sync
-    license: llama-community
-    commercial_use: yes
     fields:
       prompt: { type: string, required: false, max_length: 12000 }
       messages: { type: array, required: false }
@@ -328,8 +302,6 @@ models:
     family: text-generation
     endpoint: http://ollama:11434/api/generate
     mode: sync
-    license: llama-community
-    commercial_use: yes
     fields:
       prompt: { type: string, required: false, max_length: 12000 }
       messages: { type: array, required: false }
@@ -347,8 +319,6 @@ models:
     family: text-generation
     endpoint: http://ollama:11434/api/generate
     mode: sync
-    license: llama-community
-    commercial_use: yes
     fields:
       prompt: { type: string, required: false, max_length: 12000 }
       messages: { type: array, required: false }
@@ -366,8 +336,6 @@ models:
     family: text-generation
     endpoint: http://ollama:11434/api/generate
     mode: sync
-    license: llama-community
-    commercial_use: yes
     fields:
       prompt: { type: string, required: false, max_length: 12000 }
       messages: { type: array, required: false }
@@ -385,8 +353,6 @@ models:
     family: text-generation
     endpoint: http://ollama:11434/api/generate
     mode: sync
-    license: llama-community
-    commercial_use: yes
     fields:
       prompt: { type: string, required: false, max_length: 12000 }
       messages: { type: array, required: false }
@@ -404,8 +370,6 @@ models:
     family: text-generation
     endpoint: http://ollama:11434/api/generate
     mode: sync
-    license: llama-community
-    commercial_use: yes
     fields:
       prompt: { type: string, required: false, max_length: 12000 }
       messages: { type: array, required: false }
@@ -423,8 +387,6 @@ models:
     family: text-generation
     endpoint: http://ollama:11434/api/generate
     mode: sync
-    license: llama-community
-    commercial_use: yes
     fields:
       prompt: { type: string, required: false, max_length: 12000 }
       messages: { type: array, required: false }
@@ -442,8 +404,6 @@ models:
     family: text-generation
     endpoint: http://ollama:11434/api/generate
     mode: sync
-    license: llama-community
-    commercial_use: yes
     fields:
       prompt: { type: string, required: false, max_length: 12000 }
       messages: { type: array, required: false }
@@ -461,8 +421,6 @@ models:
     family: text-generation
     endpoint: http://ollama:11434/api/generate
     mode: sync
-    license: apache-2.0
-    commercial_use: yes
     fields:
       prompt: { type: string, required: false, max_length: 12000 }
       messages: { type: array, required: false }
@@ -480,8 +438,6 @@ models:
     family: text-generation
     endpoint: http://ollama:11434/api/generate
     mode: sync
-    license: apache-2.0
-    commercial_use: yes
     fields:
       prompt: { type: string, required: false, max_length: 12000 }
       messages: { type: array, required: false }
@@ -499,8 +455,6 @@ models:
     family: text-generation
     endpoint: http://ollama:11434/api/generate
     mode: sync
-    license: apache-2.0
-    commercial_use: yes
     fields:
       prompt: { type: string, required: false, max_length: 12000 }
       messages: { type: array, required: false }
@@ -518,8 +472,6 @@ models:
     family: text-generation
     endpoint: http://ollama:11434/api/generate
     mode: sync
-    license: apache-2.0
-    commercial_use: yes
     fields:
       prompt: { type: string, required: false, max_length: 12000 }
       messages: { type: array, required: false }
@@ -537,8 +489,6 @@ models:
     family: text-generation
     endpoint: http://ollama:11434/api/generate
     mode: sync
-    license: apache-2.0
-    commercial_use: yes
     fields:
       prompt: { type: string, required: false, max_length: 12000 }
       messages: { type: array, required: false }
@@ -556,8 +506,6 @@ models:
     family: text-generation
     endpoint: http://ollama:11434/api/generate
     mode: sync
-    license: apache-2.0
-    commercial_use: yes
     fields:
       prompt: { type: string, required: false, max_length: 12000 }
       messages: { type: array, required: false }
@@ -575,8 +523,6 @@ models:
     family: text-generation
     endpoint: http://ollama:11434/api/generate
     mode: sync
-    license: apache-2.0
-    commercial_use: yes
     fields:
       prompt: { type: string, required: false, max_length: 12000 }
       messages: { type: array, required: false }
@@ -594,8 +540,6 @@ models:
     family: text-generation
     endpoint: http://ollama:11434/api/generate
     mode: sync
-    license: apache-2.0
-    commercial_use: yes
     fields:
       prompt: { type: string, required: false, max_length: 12000 }
       messages: { type: array, required: false }
@@ -613,8 +557,6 @@ models:
     family: text-generation
     endpoint: http://ollama:11434/api/generate
     mode: sync
-    license: apache-2.0
-    commercial_use: yes
     fields:
       prompt: { type: string, required: false, max_length: 12000 }
       messages: { type: array, required: false }
@@ -632,8 +574,6 @@ models:
     family: text-generation
     endpoint: http://ollama:11434/api/generate
     mode: sync
-    license: apache-2.0
-    commercial_use: yes
     fields:
       prompt: { type: string, required: false, max_length: 12000 }
       messages: { type: array, required: false }
@@ -651,8 +591,6 @@ models:
     family: text-generation
     endpoint: http://ollama:11434/api/generate
     mode: sync
-    license: apache-2.0
-    commercial_use: yes
     fields:
       prompt: { type: string, required: false, max_length: 12000 }
       messages: { type: array, required: false }
@@ -670,8 +608,6 @@ models:
     family: text-generation
     endpoint: http://ollama:11434/api/generate
     mode: sync
-    license: apache-2.0
-    commercial_use: yes
     fields:
       prompt: { type: string, required: false, max_length: 12000 }
       messages: { type: array, required: false }
@@ -689,8 +625,6 @@ models:
     family: text-generation
     endpoint: http://ollama:11434/api/generate
     mode: sync
-    license: apache-2.0
-    commercial_use: yes
     fields:
       prompt: { type: string, required: false, max_length: 12000 }
       messages: { type: array, required: false }
@@ -708,8 +642,6 @@ models:
     family: text-generation
     endpoint: http://ollama:11434/api/generate
     mode: sync
-    license: apache-2.0
-    commercial_use: yes
     fields:
       prompt: { type: string, required: false, max_length: 12000 }
       messages: { type: array, required: false }
@@ -727,8 +659,6 @@ models:
     family: text-generation
     endpoint: http://ollama:11434/api/generate
     mode: sync
-    license: apache-2.0
-    commercial_use: yes
     fields:
       prompt: { type: string, required: false, max_length: 12000 }
       messages: { type: array, required: false }
@@ -746,8 +676,6 @@ models:
     family: text-generation
     endpoint: http://ollama:11434/api/generate
     mode: sync
-    license: apache-2.0
-    commercial_use: yes
     fields:
       prompt: { type: string, required: false, max_length: 12000 }
       messages: { type: array, required: false }
@@ -765,8 +693,6 @@ models:
     family: text-generation
     endpoint: http://ollama:11434/api/generate
     mode: sync
-    license: apache-2.0
-    commercial_use: yes
     fields:
       prompt: { type: string, required: false, max_length: 12000 }
       messages: { type: array, required: false }
@@ -784,8 +710,6 @@ models:
     family: text-generation
     endpoint: http://ollama:11434/api/generate
     mode: sync
-    license: apache-2.0
-    commercial_use: yes
     fields:
       prompt: { type: string, required: false, max_length: 12000 }
       messages: { type: array, required: false }
@@ -803,8 +727,6 @@ models:
     family: text-generation
     endpoint: http://ollama:11434/api/generate
     mode: sync
-    license: bigcode-openrail-m
-    commercial_use: yes
     fields:
       prompt: { type: string, required: false, max_length: 12000 }
       messages: { type: array, required: false }
@@ -822,8 +744,6 @@ models:
     family: text-generation
     endpoint: http://ollama:11434/api/generate
     mode: sync
-    license: apache-2.0
-    commercial_use: yes
     fields:
       prompt: { type: string, required: false, max_length: 12000 }
       messages: { type: array, required: false }
@@ -839,8 +759,6 @@ models:
     family: image-video-legacy
     endpoint: http://host.docker.internal:8001/generate/image/flux
     mode: sync
-    license: apache-2.0
-    commercial_use: yes
     fields:
       prompt: { type: string, required: true, max_length: 4000 }
       width: { type: integer, default: 1024, min: 512, max: 2048 }
@@ -858,8 +776,6 @@ models:
     family: image-flux2
     endpoint: http://host.docker.internal:8011/generate/image/flux2-klein
     mode: sync
-    license: model-card-required
-    commercial_use: no
     fields:
       prompt: { type: string, required: true, max_length: 4000 }
       width: { type: integer, default: 1024, min: 512, max: 2048 }
@@ -877,8 +793,6 @@ models:
     family: image-video-legacy
     endpoint: http://host.docker.internal:8001/generate/image/inpaint/sd15
     mode: sync
-    license: openrail
-    commercial_use: yes
     fields:
       prompt: { type: string, required: true, max_length: 4000 }
       image: { type: image, required: true }
@@ -900,8 +814,6 @@ models:
     family: image-video-legacy
     endpoint: http://host.docker.internal:8001/generate/image/edit/qwen
     mode: sync
-    license: model-card-required
-    commercial_use: no
     fields:
       prompt: { type: string, required: true, max_length: 4000 }
       image: { type: image, required: true }
@@ -920,8 +832,6 @@ models:
     family: image-video-legacy
     endpoint: http://host.docker.internal:8001/generate/image/sd35
     mode: sync
-    license: openrail
-    commercial_use: yes
     fields:
       prompt: { type: string, required: true, max_length: 4000 }
       negative_prompt: { type: string, required: false, max_length: 4000 }
@@ -940,8 +850,6 @@ models:
     family: image-video-legacy
     endpoint: http://host.docker.internal:8001/generate/image/auraflow
     mode: sync
-    license: openrail
-    commercial_use: yes
     fields:
       prompt: { type: string, required: true, max_length: 4000 }
       negative_prompt: { type: string, required: false, max_length: 4000 }
@@ -960,8 +868,6 @@ models:
     family: image-video-legacy
     endpoint: http://host.docker.internal:8001/generate/image/openflux
     mode: sync
-    license: apache-2.0
-    commercial_use: yes
     fields:
       prompt: { type: string, required: true, max_length: 4000 }
       width: { type: integer, default: 1024, min: 512, max: 2048 }
@@ -1410,8 +1316,6 @@ models:
     family: image-video-legacy
     endpoint: http://host.docker.internal:8001/generate/video/wan-1.3b
     mode: sync
-    license: model-card-required
-    commercial_use: no
     fields:
       prompt: { type: string, required: true, max_length: 4000 }
       negative_prompt: { type: string, required: false, max_length: 4000 }
@@ -1431,8 +1335,6 @@ models:
     family: video-magi
     endpoint: http://host.docker.internal:8016/generate/video/magi
     mode: sync
-    license: model-card-required
-    commercial_use: no
     fields:
       prompt: { type: string, required: true, max_length: 4000 }
       image: { type: string, required: false }
@@ -1454,8 +1356,6 @@ models:
     family: video-framepack
     endpoint: http://host.docker.internal:8012/generate/video/framepack
     mode: sync
-    license: model-card-required
-    commercial_use: no
     fields:
       prompt: { type: string, required: true, max_length: 4000 }
       image: { type: string, required: true }
@@ -1482,8 +1382,6 @@ models:
     family: video-framepack
     endpoint: http://host.docker.internal:8012/generate/video/framepack
     mode: sync
-    license: model-card-required
-    commercial_use: no
     fields:
       prompt: { type: string, required: true, max_length: 4000 }
       image: { type: string, required: false }
@@ -1510,8 +1408,6 @@ models:
     family: image-video-legacy
     endpoint: http://host.docker.internal:8001/generate/video/wan-14b
     mode: sync
-    license: model-card-required
-    commercial_use: no
     fields:
       prompt: { type: string, required: true, max_length: 4000 }
       negative_prompt: { type: string, required: false, max_length: 4000 }
@@ -1532,8 +1428,6 @@ models:
     family: image-video-legacy
     endpoint: http://host.docker.internal:8001/generate/video/skyreels-v2-df-1.3b-540p
     mode: sync
-    license: model-card-required
-    commercial_use: no
     fields:
       prompt: { type: string, required: true, max_length: 4000 }
       negative_prompt: { type: string, required: false, max_length: 4000 }
@@ -1559,8 +1453,6 @@ models:
     family: image-video-legacy
     endpoint: http://host.docker.internal:8001/generate/video/cogvideox-2b
     mode: sync
-    license: model-card-required
-    commercial_use: no
     fields:
       prompt: { type: string, required: true, max_length: 4000 }
       negative_prompt: { type: string, required: false, max_length: 4000 }
@@ -1580,8 +1472,6 @@ models:
     family: image-video-legacy
     endpoint: http://host.docker.internal:8001/generate/video/ltx-video
     mode: sync
-    license: model-card-required
-    commercial_use: no
     fields:
       prompt: { type: string, required: true, max_length: 4000 }
       negative_prompt: { type: string, required: false, max_length: 4000 }
@@ -1608,7 +1498,6 @@ models:
     endpoint: http://host.docker.internal:8001/generate/video/ltx-video-13b
     mode: sync
     license: openrail++
-    commercial_use: no
     source_repo: Lightricks/LTX-Video
     implemented: true
     fields:
@@ -1631,7 +1520,6 @@ models:
     endpoint: http://host.docker.internal:8001/generate/video/wan-i2v-14b
     mode: sync
     license: apache-2.0
-    commercial_use: no
     source_repo: Wan-AI/Wan2.1-I2V-14B-480P-Diffusers
     implemented: true
     fields:
@@ -1655,7 +1543,6 @@ models:
     endpoint: http://host.docker.internal:8001/generate/video/wan22-t2v
     mode: sync
     license: apache-2.0
-    commercial_use: no
     source_repo: Wan-AI/Wan2.2-T2V-A14B-Diffusers
     implemented: true
     fields:
@@ -1701,7 +1588,6 @@ models:
     endpoint: http://host.docker.internal:8001/generate/video/cogvideox-1-5-5b
     mode: sync
     license: apache-2.0
-    commercial_use: no
     source_repo: THUDM/CogVideoX1.5-5B
     implemented: true
     fields:
@@ -1724,7 +1610,6 @@ models:
     endpoint: http://host.docker.internal:8001/generate/video/mochi-1
     mode: sync
     license: apache-2.0
-    commercial_use: no
     source_repo: genmo/mochi-1-preview
     implemented: true
     fields:
@@ -1770,7 +1655,6 @@ models:
     endpoint: http://host.docker.internal:8001/generate/video/animatediff
     mode: sync
     license: apache-2.0
-    commercial_use: no
     source_repo: guoyww/animatediff-motion-adapter-v1-5-3
     implemented: true
     fields:
@@ -1793,7 +1677,6 @@ models:
     endpoint: http://host.docker.internal:8001/generate/video/zeroscope
     mode: sync
     license: cc-by-4.0
-    commercial_use: no
     source_repo: cerspense/zeroscope_v2_576w
     implemented: true
     fields:
@@ -1836,7 +1719,6 @@ models:
     endpoint: http://host.docker.internal:8001/generate/video/wan-1.3b-diffusers
     mode: sync
     license: apache-2.0
-    commercial_use: no
     source_repo: Wan-AI/Wan2.1-T2V-1.3B-Diffusers
     implemented: true
     fields:
@@ -1859,7 +1741,6 @@ models:
     endpoint: http://host.docker.internal:8001/generate/video/ltx-distilled
     mode: sync
     license: openrail++
-    commercial_use: no
     source_repo: Lightricks/LTX-Video-0.9.7-distilled
     implemented: true
     fields:
@@ -1882,7 +1763,6 @@ models:
     endpoint: http://host.docker.internal:8001/generate/video/wan-flf2v-14b
     mode: sync
     license: apache-2.0
-    commercial_use: no
     source_repo: Wan-AI/Wan2.1-FLF2V-14B-720P-Diffusers
     implemented: true
     fields:
@@ -1913,8 +1793,6 @@ models:
       sample_rate: { type: integer, default: 24000, min: 24000, max: 24000 }
       lang_code: { type: string, required: false, max_length: 1 }
 
-    license: apache-2.0
-    commercial_use: yes
   kokoro-82m-onnx:
     display_name: Kokoro-82M ONNX
     modality: text-to-speech
@@ -1927,8 +1805,6 @@ models:
       speed: { type: number, default: 1.0, min: 0.1, max: 5.0 }
       format: { type: string, default: wav, enum: [wav] }
 
-    license: apache-2.0
-    commercial_use: yes
   melotts:
     display_name: MeloTTS
     modality: text-to-speech
@@ -1942,8 +1818,6 @@ models:
       speed: { type: number, default: 1.0, min: 0.5, max: 3.0 }
       format: { type: string, default: wav, enum: [wav] }
 
-    license: apache-2.0
-    commercial_use: yes
   outetts:
     display_name: OuteTTS (0.2-500M / 0.3-1B)
     modality: text-to-speech
@@ -1960,8 +1834,6 @@ models:
       ref_text: { type: string, default: "", max_length: 12000 }
       format: { type: string, default: wav, enum: [wav] }
 
-    license: model-card-required
-    commercial_use: no
   stable-audio-open-1.0:
     display_name: Stable Audio Open 1.0
     modality: text-to-audio
@@ -1977,8 +1849,6 @@ models:
       seed: { type: integer, required: false, min: 0, max: 2147483647 }
       format: { type: string, default: wav, enum: [wav] }
 
-    license: model-card-required
-    commercial_use: no
   mms-tts:
     display_name: MMS-TTS (eng/deu/fra/spa)
     modality: text-to-speech
@@ -1993,8 +1863,6 @@ models:
       noise_scale_duration: { type: number, default: 0.8, min: 0.0, max: 2.0 }
       format: { type: string, default: wav, enum: [wav] }
 
-    license: model-card-required
-    commercial_use: no
   speecht5-tts:
     display_name: SpeechT5 TTS
     modality: text-to-speech
@@ -2009,8 +1877,6 @@ models:
       maxlenratio: { type: number, default: 20.0, min: 1.0, max: 50.0 }
       format: { type: string, default: wav, enum: [wav] }
 
-    license: apache-2.0
-    commercial_use: yes
   bark-small:
     display_name: Bark Small
     modality: text-to-speech
@@ -2030,8 +1896,6 @@ models:
       fine_max_new_tokens: { type: integer, default: 1536, min: 1, max: 4096 }
       format: { type: string, default: wav, enum: [wav] }
 
-    license: model-card-required
-    commercial_use: no
   bark-full:
     display_name: Bark Full
     modality: text-to-speech
@@ -2045,8 +1909,6 @@ models:
       temperature: { type: number, default: 1.0, min: 0.0, max: 2.0 }
       format: { type: string, default: wav, enum: [wav] }
 
-    license: model-card-required
-    commercial_use: no
   espnet-vits:
     display_name: ESPnet VITS (LJSpeech)
     modality: text-to-speech
@@ -2060,8 +1922,6 @@ models:
       noise_scale_dur: { type: number, default: 0.8, min: 0.0, max: 2.0 }
       format: { type: string, default: wav, enum: [wav] }
 
-    license: apache-2.0
-    commercial_use: yes
   chatterbox:
     display_name: Chatterbox TTS
     modality: text-to-speech
@@ -2081,8 +1941,6 @@ models:
       norm_loudness: { type: boolean, default: false }
       format: { type: string, default: wav, enum: [wav] }
 
-    license: model-card-required
-    commercial_use: no
   chatterbox-multilingual:
     display_name: Chatterbox Multilingual TTS V3
     modality: text-to-speech
@@ -2099,8 +1957,6 @@ models:
       cfg_weight: { type: number, default: 0.5, min: 0.0, max: 2.0 }
       format: { type: string, default: wav, enum: [wav] }
 
-    license: model-card-required
-    commercial_use: no
   chatterbox-turbo:
     display_name: Chatterbox Turbo TTS
     modality: text-to-speech
@@ -2120,8 +1976,6 @@ models:
       norm_loudness: { type: boolean, default: true }
       format: { type: string, default: wav, enum: [wav] }
 
-    license: model-card-required
-    commercial_use: no
   f5-tts:
     display_name: F5-TTS
     modality: text-to-speech
@@ -2135,8 +1989,6 @@ models:
       speed: { type: number, default: 1.0, min: 0.5, max: 3.0 }
       format: { type: string, default: wav, enum: [wav] }
 
-    license: apache-2.0
-    commercial_use: yes
   e2-tts:
     display_name: E2-TTS
     modality: text-to-speech
@@ -2150,8 +2002,6 @@ models:
       speed: { type: number, default: 1.0, min: 0.5, max: 3.0 }
       format: { type: string, default: wav, enum: [wav] }
 
-    license: apache-2.0
-    commercial_use: yes
   kitten-tts:
     display_name: KittenTTS Nano
     modality: text-to-speech
@@ -2164,8 +2014,6 @@ models:
       speed: { type: number, default: 1.0, min: 0.5, max: 3.0 }
       format: { type: string, default: wav, enum: [wav] }
 
-    license: apache-2.0
-    commercial_use: yes
   xtts-v2:
     display_name: XTTS v2
     modality: text-to-speech
@@ -2173,15 +2021,11 @@ models:
     family: audio-xtts
     endpoint: http://audio-xtts:8109/generate
     fields:
-      text: { type: string, required: false, max_length: 12000 }
+      text: { type: string, required: true, max_length: 12000 }
       language: { type: string, default: en }
       speaker_wav: { type: string, required: false, max_length: 500 }
-      task: { type: string, required: false, enum: [voice-conversion] }
-      source_wav: { type: string, required: false, max_length: 500 }
       format: { type: string, default: wav, enum: [wav] }
 
-    license: model-card-required
-    commercial_use: no
   csm-1b:
     display_name: Sesame CSM-1B
     modality: text-to-speech
@@ -2198,8 +2042,6 @@ models:
   # Commercially-usable audio models added to reach >=20 per category.
   # Ranked by Hugging Face download popularity. implemented:false until runner.
   # ===========================================================================
-    license: model-card-required
-    commercial_use: no
   parler-tts-mini-v1:
     display_name: Parler-TTS Mini v1
     modality: text-to-speech

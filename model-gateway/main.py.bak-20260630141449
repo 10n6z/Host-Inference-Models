@@ -73,10 +73,6 @@ def _models_payload() -> list[dict[str, Any]]:
                 "family": entry.get("family"),
                 "endpoint": entry.get("endpoint"),
                 "fields": entry.get("fields") or {},
-                "license": entry.get("license"),
-                "commercial_use": ("yes" if entry.get("commercial_use") is True else "no" if entry.get("commercial_use") is False else entry.get("commercial_use")),
-                "implemented": entry.get("implemented", True),
-                "source_repo": entry.get("source_repo"),
             }
         )
     return models

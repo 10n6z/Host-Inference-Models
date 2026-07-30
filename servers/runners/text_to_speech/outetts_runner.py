@@ -40,13 +40,14 @@ class OuteTTSRunner:
             self.interface = outetts.Interface(config)
             return
 
+        version_str = "0.3" if "0.3" in self.variant else "0.2"
         config = outetts.HFModelConfig_v1(
             model_path=self.model_id,
             tokenizer_path=self.model_id,
             device="cpu",
             max_seq_length=4096,
         )
-        self.interface = outetts.InterfaceHF("0.2", config)
+        self.interface = outetts.InterfaceHF(version_str, config)
 
     def generate(
         self,

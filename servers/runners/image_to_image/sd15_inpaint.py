@@ -1,7 +1,6 @@
 import os
 import torch
 from diffusers import StableDiffusionInpaintPipeline
-from runners.gpu_utils import has_multiple_cuda_devices, maybe_enable_multi_gpu
 
 
 class SD15InpaintRunner:
@@ -35,9 +34,8 @@ class SD15InpaintRunner:
             torch_dtype=torch.float16,
             safety_checker=None,
             local_files_only=True,
-            **({"device_map": "balanced"} if has_multiple_cuda_devices() else {}),
         )
-        maybe_enable_multi_gpu(self.pipe)
+        self.pipe.to("cuda:0")
         self.pipe.set_progress_bar_config(disable=True)
         return self.pipe
 

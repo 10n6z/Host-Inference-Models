@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import uuid
 from typing import Optional
 
@@ -11,6 +12,7 @@ from common.audio_service_base import (
     audio_response,
     ensure_output_exists,
 )
+from runners.text_to_speech.freevc_runner import FreeVCRunner
 from runners.text_to_speech.xtts_runner import XTTSRunner
 
 SERVICE_NAME = "audio-xtts"
@@ -19,6 +21,7 @@ TTS_TEXT_MAX_LENGTH = 12000
 WAV_ONLY_PATTERN = "^(wav)$"
 
 xtts_runner = XTTSRunner()
+freevc_runner = FreeVCRunner()
 
 SUPPORTED_MODELS = {
     "xtts-v2": {
@@ -28,6 +31,8 @@ SUPPORTED_MODELS = {
             "text": {"type": "string", "required": True, "max_length": TTS_TEXT_MAX_LENGTH},
             "language": {"type": "string", "default": "en"},
             "speaker_wav": {"type": "string", "required": False, "max_length": 500},
+            "task": {"type": "string", "required": False, "enum": ["voice-conversion"]},
+            "source_wav": {"type": "string", "required": False, "max_length": 500},
             "format": {"type": "string", "default": "wav", "enum": ["wav"]},
         },
     },
@@ -43,7 +48,52 @@ class XTTSParams(BaseModel):
     format: str = Field("wav", pattern=WAV_ONLY_PATTERN)
 
 
+class XTTSVoiceConversionParams(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    task: str = Field(..., pattern="^voice-conversion$")
+    source_wav: str = Field(..., min_length=1, max_length=500)
+    speaker_wav: str = Field(..., min_length=1, max_length=500)
+    language: Optional[str] = Field(default=None, max_length=10)
+    format: str = Field("wav", pattern=WAV_ONLY_PATTERN)
+
+
+def _convert_voice(**params) -> dict:
+    req = XTTSVoiceConversionParams.model_validate(params)
+    for label, path in (("source_wav", req.source_wav), ("speaker_wav", req.speaker_wav)):
+        if not os.path.isfile(path):
+            raise ValueError(f"{label} file not found: {path}")
+
+    format_normalized = req.format.lower()
+    output_id = f"xtts_vc_{uuid.uuid4().hex}.{format_normalized}"
+    output_path = AUDIO_OUTPUT_DIR / output_id
+
+    audio_meta = freevc_runner.convert(
+        source_wav=req.source_wav,
+        target_wav=req.speaker_wav,
+        output_path=str(output_path),
+    )
+    ensure_output_exists(output_path)
+    return audio_response(
+        model_id="xtts-v2",
+        modality="voice-conversion",
+        audio_kind="voice-conversion",
+        output_id=output_id,
+        output_path=output_path,
+        parameters_used={
+            "task": "voice-conversion",
+            "source_wav": req.source_wav,
+            "speaker_wav": req.speaker_wav,
+            "format": format_normalized,
+        },
+        audio_meta=audio_meta,
+    )
+
+
 def _generate_xtts(**params) -> dict:
+    if params.get("task") == "voice-conversion":
+        return _convert_voice(**params)
+
     req = XTTSParams.model_validate(params)
     format_normalized = req.format.lower()
     output_id = f"xtts_{uuid.uuid4().hex}.{format_normalized}"

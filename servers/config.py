@@ -93,14 +93,98 @@ def _resolve_seed(random_seed: bool, seed: Optional[int]) -> int:
     return int(seed)
 
 
+_CUDA_FAILURE_MARKERS = (
+    "out of memory",
+    "cublas_status_not_supported",
+    "cublas_status_alloc_failed",
+    "device-side assert",
+    "cudaerrorassert",
+)
+
+
+def _free_all_cached_pipelines() -> int:
+    """Drop every cached GPU pipeline so the next load starts clean.
+
+    Runners cache their pipeline on self.pipe (or self.model) and never
+    evict, so cycling through models eventually exhausts VRAM. Called when a
+    CUDA-level failure is detected; the failed request is retried once after.
+    """
+    import gc
+    import sys
+
+    freed = 0
+    for name, module in list(sys.modules.items()):
+        if not name.startswith(("runners.", "routes.")) or module is None:
+            continue
+        for attr in vars(module).values():
+            for slot in ("pipe", "model", "tts"):
+                if hasattr(attr, slot) and getattr(attr, slot) is not None and hasattr(attr, "load"):
+                    setattr(attr, slot, None)
+                    freed += 1
+    gc.collect()
+    try:
+        import torch
+
+        if torch.cuda.is_available():
+            for device_index in range(torch.cuda.device_count()):
+                with torch.cuda.device(device_index):
+                    torch.cuda.empty_cache()
+    except Exception:
+        pass
+    return freed
+
+
+def _is_cuda_failure(exc: Exception) -> bool:
+    text = str(exc).lower()
+    return any(marker in text for marker in _CUDA_FAILURE_MARKERS)
+
+
+def _set_least_loaded_cuda_device() -> None:
+    """Point the default 'cuda' device at the GPU with the most free memory.
+
+    Runners load with .to('cuda'), which resolves to the current device
+    (default 0). GPU 0 is often crowded by other tenants on this shared host,
+    so rebind before each generation. Already-cached pipelines keep their
+    explicit device and are unaffected.
+    """
+    try:
+        import torch
+
+        if not torch.cuda.is_available() or torch.cuda.device_count() < 2:
+            return
+        free_by_device = []
+        for device_index in range(torch.cuda.device_count()):
+            free, _total = torch.cuda.mem_get_info(device_index)
+            free_by_device.append((free, device_index))
+        torch.cuda.set_device(max(free_by_device)[1])
+    except Exception:
+        pass
+
+
 def _run_with_timeout(func, *args, timeout_seconds: float = INFERENCE_TIMEOUT_SECONDS, **kwargs):
-    with ThreadPoolExecutor(max_workers=1) as executor:
-        future = executor.submit(func, *args, **kwargs)
-        try:
-            return future.result(timeout=timeout_seconds)
-        except FuturesTimeoutError as exc:
-            raise APIError(
-                code="TIMEOUT",
-                message=f"Generation timed out after {int(timeout_seconds)} seconds.",
-                status_code=504,
-            ) from exc
+    def _target():
+        _set_least_loaded_cuda_device()
+        return func(*args, **kwargs)
+
+    def _submit_once():
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            future = executor.submit(_target)
+            try:
+                return future.result(timeout=timeout_seconds)
+            except FuturesTimeoutError as exc:
+                raise APIError(
+                    code="TIMEOUT",
+                    message=f"Generation timed out after {int(timeout_seconds)} seconds.",
+                    status_code=504,
+                ) from exc
+
+    try:
+        return _submit_once()
+    except APIError:
+        raise
+    except Exception as exc:  # noqa: BLE001
+        if not _is_cuda_failure(exc):
+            raise
+        freed = _free_all_cached_pipelines()
+        print(f"CUDA failure detected; freed {freed} cached pipelines, retrying once. Original error: {str(exc)[:200]}")
+        return _submit_once()

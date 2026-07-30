@@ -94,7 +94,17 @@ async def generate(
 
     output_text = body.get("response")
     if not isinstance(output_text, str) or not output_text.strip():
-        raise OllamaAdapterError("Ollama response did not include generated text.")
+        thinking = body.get("thinking")
+        if isinstance(thinking, str) and thinking.strip():
+            output_text = thinking
+        elif body.get("done_reason") == "length":
+            raise OllamaAdapterError(
+                "Token limit reached before the model produced a final answer. "
+                "Reasoning models spend tokens thinking first - increase max_tokens.",
+                422,
+            )
+        else:
+            raise OllamaAdapterError("Ollama response did not include generated text.")
 
     return {
         "success": True,
