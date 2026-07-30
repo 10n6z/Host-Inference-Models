@@ -7,3 +7,4 @@ numpy==1.26.4
 pillow==11.0.0
 
 paddleocr==2.7.3
+PyYAML==6.0.2

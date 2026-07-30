@@ -16,6 +16,9 @@ conda activate host-models
 export OUTPUT_ROOT=/gpt-lab/long/outputs 
 export PUBLIC_BASE_URL=http://localhost:9000 
 export DEVICE=cuda
+export IMAGE_GPU_UUID="GPU-abffce46-a266-a0b8-8f86-e40d19fd546e"
+export VIDEO_GPU_UUID="GPU-c808af26-9750-cfe0-9b8a-b18871c6cfed"
+export CUDA_VISIBLE_DEVICES="${MODEL_SERVER_CUDA_VISIBLE_DEVICES:-${IMAGE_GPU_UUID},${VIDEO_GPU_UUID}}"
 
 cd "$SCRIPT_DIR"
 docker compose up -d

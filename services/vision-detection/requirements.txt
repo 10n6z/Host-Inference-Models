@@ -11,3 +11,4 @@ torchvision==0.21.0
 transformers==4.46.3
 safetensors==0.6.2
 huggingface_hub==0.26.5
+PyYAML==6.0.2

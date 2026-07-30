@@ -5,6 +5,7 @@ entry to `model_registry()`, and add a `@router.post(...)` endpoint.
 """
 from __future__ import annotations
 
+from functools import partial
 import base64
 import binascii
 import io
@@ -27,7 +28,7 @@ from config import (
     _output_url,
     _public_output_url,
     _resolve_seed,
-    _run_with_timeout,
+    _run_with_timeout as _run_with_timeout_base,
 )
 from common import (
     APIError,
@@ -54,6 +55,7 @@ from runners.text_to_video.wan_t2v_14b_runner import WanT2V14BRunner
 from runners.text_to_video.wan_t2v_runner import WanT2VRunner
 
 router = APIRouter()
+_run_with_timeout = partial(_run_with_timeout_base, gpu_uuid_env="VIDEO_GPU_UUID")
 
 wan_t2v_runner = WanT2VRunner()
 wan_t2v_14b_runner = WanT2V14BRunner()

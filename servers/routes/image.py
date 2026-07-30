@@ -5,6 +5,7 @@ entry to `model_registry()`, and add a `@router.post(...)` endpoint.
 """
 from __future__ import annotations
 
+from functools import partial
 import base64
 import binascii
 import io
@@ -27,7 +28,7 @@ from config import (
     _output_url,
     _public_output_url,
     _resolve_seed,
-    _run_with_timeout,
+    _run_with_timeout as _run_with_timeout_base,
 )
 from common import (
     APIError,
@@ -62,6 +63,7 @@ from runners.image_to_image.qwen_image_edit import QwenImageEditRunner
 from runners.image_to_image.sd15_inpaint import SD15InpaintRunner
 
 router = APIRouter()
+_run_with_timeout = partial(_run_with_timeout_base, gpu_uuid_env="IMAGE_GPU_UUID")
 
 flux_runner = FluxSchnellRunner()
 sd35_runner = SD35MediumRunner()

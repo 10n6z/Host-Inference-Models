@@ -9,6 +9,9 @@ GATEWAY_PUBLIC_BASE_URL="${GATEWAY_PUBLIC_BASE_URL:-http://localhost:9000}"
 GATEWAY_TIMEOUT_SECONDS="${GATEWAY_TIMEOUT_SECONDS:-3600}"
 INFERENCE_TIMEOUT_SECONDS="${INFERENCE_TIMEOUT_SECONDS:-3600}"
 CUDA_VISIBLE_DEVICES_DEFAULT="${CUDA_VISIBLE_DEVICES_DEFAULT:-0,1,2,3}"
+IMAGE_GPU_UUID="GPU-abffce46-a266-a0b8-8f86-e40d19fd546e"
+VIDEO_GPU_UUID="GPU-c808af26-9750-cfe0-9b8a-b18871c6cfed"
+MODEL_SERVER_CUDA_VISIBLE_DEVICES_DEFAULT="${IMAGE_GPU_UUID},${VIDEO_GPU_UUID}"
 
 mkdir -p "$LOG_DIR" "$OUTPUT_ROOT"
 
@@ -73,7 +76,7 @@ export CUDA_MODULE_LOADING="${CUDA_MODULE_LOADING:-LAZY}"
 cd "$SCRIPT_DIR"
 docker compose up -d
 
-start_tmux "model-gateway-legacy" "source \"$(conda info --base)/etc/profile.d/conda.sh\" && conda activate host-models && cd \"$SCRIPT_DIR/servers\" && export OUTPUT_ROOT=\"$OUTPUT_ROOT\" PUBLIC_BASE_URL=\"$PUBLIC_BASE_URL\" INFERENCE_TIMEOUT_SECONDS=\"$INFERENCE_TIMEOUT_SECONDS\" CUDA_VISIBLE_DEVICES=\"${MODEL_SERVER_CUDA_VISIBLE_DEVICES:-$CUDA_VISIBLE_DEVICES_DEFAULT}\" PYTORCH_CUDA_ALLOC_CONF=\"$PYTORCH_CUDA_ALLOC_CONF\" CUDA_MODULE_LOADING=\"$CUDA_MODULE_LOADING\" && exec uvicorn model_server:app --host 0.0.0.0 --port 8001 2>&1 | tee -a \"$LOG_DIR/model-server.log\""
+start_tmux "model-gateway-legacy" "source \"$(conda info --base)/etc/profile.d/conda.sh\" && conda activate host-models && cd \"$SCRIPT_DIR/servers\" && export OUTPUT_ROOT=\"$OUTPUT_ROOT\" PUBLIC_BASE_URL=\"$PUBLIC_BASE_URL\" INFERENCE_TIMEOUT_SECONDS=\"$INFERENCE_TIMEOUT_SECONDS\" CUDA_VISIBLE_DEVICES=\"${MODEL_SERVER_CUDA_VISIBLE_DEVICES:-$MODEL_SERVER_CUDA_VISIBLE_DEVICES_DEFAULT}\" IMAGE_GPU_UUID=\"$IMAGE_GPU_UUID\" VIDEO_GPU_UUID=\"$VIDEO_GPU_UUID\" PYTORCH_CUDA_ALLOC_CONF=\"$PYTORCH_CUDA_ALLOC_CONF\" CUDA_MODULE_LOADING=\"$CUDA_MODULE_LOADING\" && exec uvicorn model_server:app --host 0.0.0.0 --port 8001 2>&1 | tee -a \"$LOG_DIR/model-server.log\""
 
 start_tmux "flux2-server" "source \"$(conda info --base)/etc/profile.d/conda.sh\" && conda activate host-models-flux2 && cd \"$SCRIPT_DIR/servers\" && export OUTPUT_ROOT=\"$OUTPUT_ROOT\" FLUX2_PUBLIC_BASE_URL=\"$PUBLIC_BASE_URL\" INFERENCE_TIMEOUT_SECONDS=\"$INFERENCE_TIMEOUT_SECONDS\" CUDA_VISIBLE_DEVICES=\"${FLUX2_CUDA_VISIBLE_DEVICES:-0}\" PYTORCH_CUDA_ALLOC_CONF=\"$PYTORCH_CUDA_ALLOC_CONF\" CUDA_MODULE_LOADING=\"$CUDA_MODULE_LOADING\" && exec uvicorn flux2_server:app --host 0.0.0.0 --port 8011 2>&1 | tee -a \"$LOG_DIR/flux2-server.log\""
 

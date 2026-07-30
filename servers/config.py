@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import os
 import secrets
+import subprocess
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 from pathlib import Path
 from typing import Optional
@@ -102,6 +103,38 @@ _CUDA_FAILURE_MARKERS = (
 )
 
 
+def _visible_gpu_tokens() -> list[str]:
+    raw = os.getenv("CUDA_VISIBLE_DEVICES") or os.getenv("NVIDIA_VISIBLE_DEVICES") or ""
+    if raw.strip() and raw.strip().lower() not in {"all", "none", "void"}:
+        return [item.strip() for item in raw.split(",") if item.strip()]
+    try:
+        result = subprocess.run(
+            ["nvidia-smi", "--query-gpu=uuid", "--format=csv,noheader"],
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return []
+    return [line.strip() for line in result.stdout.splitlines() if line.strip()]
+
+
+def require_workload_gpu(env_name: str, visible_devices: list[str] | None = None) -> str:
+    target_uuid = os.getenv(env_name)
+    if not target_uuid:
+        raise RuntimeError(f"{env_name} must be configured for a pinned workload")
+    visible = _visible_gpu_tokens() if visible_devices is None else visible_devices
+    if target_uuid not in visible:
+        raise RuntimeError(f"{env_name}={target_uuid} is not visible to the combined server")
+    return target_uuid
+
+
+if os.getenv("IMAGE_GPU_UUID") or os.getenv("VIDEO_GPU_UUID"):
+    require_workload_gpu("IMAGE_GPU_UUID")
+    require_workload_gpu("VIDEO_GPU_UUID")
+
+
 def _free_all_cached_pipelines() -> int:
     """Drop every cached GPU pipeline so the next load starts clean.
 
@@ -161,9 +194,29 @@ def _set_least_loaded_cuda_device() -> None:
         pass
 
 
-def _run_with_timeout(func, *args, timeout_seconds: float = INFERENCE_TIMEOUT_SECONDS, **kwargs):
+def _set_workload_cuda_device(env_name: str) -> None:
+    visible = _visible_gpu_tokens()
+    target_uuid = require_workload_gpu(env_name, visible)
+    device_index = visible.index(target_uuid)
+    import torch
+
+    if not torch.cuda.is_available() or device_index >= torch.cuda.device_count():
+        raise RuntimeError(f"{env_name} target {target_uuid} has no usable CUDA device")
+    torch.cuda.set_device(device_index)
+
+
+def _run_with_timeout(
+    func,
+    *args,
+    timeout_seconds: float = INFERENCE_TIMEOUT_SECONDS,
+    gpu_uuid_env: str | None = None,
+    **kwargs,
+):
     def _target():
-        _set_least_loaded_cuda_device()
+        if gpu_uuid_env:
+            _set_workload_cuda_device(gpu_uuid_env)
+        else:
+            _set_least_loaded_cuda_device()
         return func(*args, **kwargs)
 
     def _submit_once():

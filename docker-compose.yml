@@ -256,10 +256,22 @@ services:
     environment:
       PADDLE_PDX_CACHE_HOME: /gpt-lab/long/models/paddle
       HF_HOME: /gpt-lab/long/models/hf
+      TRANSFORMERS_CACHE: /gpt-lab/long/models/hf
       NVIDIA_VISIBLE_DEVICES: GPU-47cba434-13c2-1aca-e112-f8d1c9659d5a
       CUDA_VISIBLE_DEVICES: "0"
     volumes:
       - /gpt-lab/long/models:/gpt-lab/long/models
+      - ./config/gpu-policy.yaml:/app/config/gpu-policy.yaml:ro
+      - ./scripts/check-gpu-ownership.py:/app/scripts/check-gpu-ownership.py:ro
+    entrypoint:
+      - /bin/sh
+      - -ec
+      - >-
+        python /app/scripts/check-gpu-ownership.py
+        --policy /app/config/gpu-policy.yaml
+        --target-service vision-ocr
+        --json
+        && exec uvicorn main:app --host 0.0.0.0 --port 8120
     networks:
       - model-server
     deploy:
@@ -284,6 +296,17 @@ services:
       CUDA_VISIBLE_DEVICES: "0"
     volumes:
       - /gpt-lab/long/models:/gpt-lab/long/models
+      - ./config/gpu-policy.yaml:/app/config/gpu-policy.yaml:ro
+      - ./scripts/check-gpu-ownership.py:/app/scripts/check-gpu-ownership.py:ro
+    entrypoint:
+      - /bin/sh
+      - -ec
+      - >-
+        python /app/scripts/check-gpu-ownership.py
+        --policy /app/config/gpu-policy.yaml
+        --target-service vision-detection
+        --json
+        && exec uvicorn main:app --host 0.0.0.0 --port 8121
     networks:
       - model-server
     deploy:
