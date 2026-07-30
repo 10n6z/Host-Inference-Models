@@ -49,6 +49,8 @@ services:
       - audio-parler
       - audio-dia
       - audio-cosyvoice
+      - vision-ocr
+      - vision-detection
     networks:
       - model-server
 
@@ -244,6 +246,53 @@ services:
     volumes: *audio-volumes
     networks:
       - model-server
+
+  vision-ocr:
+    build:
+      context: .
+      dockerfile: services/vision-ocr/Dockerfile
+    expose:
+      - "8120"
+    environment:
+      PADDLE_PDX_CACHE_HOME: /gpt-lab/long/models/paddle
+      HF_HOME: /gpt-lab/long/models/hf
+      NVIDIA_VISIBLE_DEVICES: GPU-47cba434-13c2-1aca-e112-f8d1c9659d5a
+      CUDA_VISIBLE_DEVICES: "0"
+    volumes:
+      - /gpt-lab/long/models:/gpt-lab/long/models
+    networks:
+      - model-server
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ["GPU-47cba434-13c2-1aca-e112-f8d1c9659d5a"]
+              capabilities: [gpu]
+
+  vision-detection:
+    build:
+      context: .
+      dockerfile: services/vision-detection/Dockerfile
+    expose:
+      - "8121"
+    environment:
+      HF_HOME: /gpt-lab/long/models/hf
+      TRANSFORMERS_CACHE: /gpt-lab/long/models/hf
+      VISION_DETECTION_MODEL_ID: PekingU/rtdetr_r50vd
+      NVIDIA_VISIBLE_DEVICES: GPU-b8a1d704-80b3-37f8-c2ed-e764700c5326
+      CUDA_VISIBLE_DEVICES: "0"
+    volumes:
+      - /gpt-lab/long/models:/gpt-lab/long/models
+    networks:
+      - model-server
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ["GPU-b8a1d704-80b3-37f8-c2ed-e764700c5326"]
+              capabilities: [gpu]
 
 networks:
   model-server:

@@ -70,6 +70,14 @@ services:
     name: magi
     family: video-magi
     base_url: http://host.docker.internal:8016
+  vision-ocr:
+    name: vision-ocr
+    family: vision-ocr
+    base_url: http://vision-ocr:8120
+  vision-detection:
+    name: vision-detection
+    family: vision-detection
+    base_url: http://vision-detection:8121
 models:
   "deepseek-coder:6.7b":
     display_name: "deepseek-coder:6.7b"
@@ -1468,7 +1476,8 @@ models:
       cfg: { type: number, default: 1.0, min: 1.0, max: 32.0 }
       gs: { type: number, default: 10.0, min: 1.0, max: 32.0 }
       rs: { type: number, default: 0.0, min: 0.0, max: 1.0 }
-      gpu_memory_preservation: { type: number, default: 6.0, min: 0.0, max: 128.0 }
+      gpu_memory_preservation:
+        { type: number, default: 6.0, min: 0.0, max: 128.0 }
       use_teacache: { type: boolean, default: true }
       mp4_crf: { type: integer, default: 16, min: 0, max: 51 }
       random_seed: { type: boolean, default: true }
@@ -1496,7 +1505,8 @@ models:
       cfg: { type: number, default: 1.0, min: 1.0, max: 32.0 }
       gs: { type: number, default: 10.0, min: 1.0, max: 32.0 }
       rs: { type: number, default: 0.0, min: 0.0, max: 1.0 }
-      gpu_memory_preservation: { type: number, default: 6.0, min: 0.0, max: 128.0 }
+      gpu_memory_preservation:
+        { type: number, default: 6.0, min: 0.0, max: 128.0 }
       use_teacache: { type: boolean, default: true }
       mp4_crf: { type: integer, default: 16, min: 0, max: 51 }
       random_seed: { type: boolean, default: true }
@@ -1952,7 +1962,8 @@ models:
     endpoint: http://audio-outetts:8105/generate
     fields:
       text: { type: string, required: true, max_length: 12000 }
-      variant: { type: string, default: "0.2-500M", enum: ["0.2-500M", "0.3-1B"] }
+      variant:
+        { type: string, default: "0.2-500M", enum: ["0.2-500M", "0.3-1B"] }
       temperature: { type: number, default: 0.1, min: 0.0, max: 2.0 }
       repetition_penalty: { type: number, default: 1.1, min: 1.0, max: 3.0 }
       max_length: { type: integer, default: 4096, min: 256, max: 8192 }
@@ -2025,7 +2036,8 @@ models:
       semantic_temperature: { type: number, default: 1.0, min: 0.0, max: 2.0 }
       coarse_temperature: { type: number, default: 1.0, min: 0.0, max: 2.0 }
       fine_temperature: { type: number, default: 1.0, min: 0.0, max: 2.0 }
-      semantic_max_new_tokens: { type: integer, default: 768, min: 1, max: 2048 }
+      semantic_max_new_tokens:
+        { type: integer, default: 768, min: 1, max: 2048 }
       coarse_max_new_tokens: { type: integer, default: 1536, min: 1, max: 4096 }
       fine_max_new_tokens: { type: integer, default: 1536, min: 1, max: 4096 }
       format: { type: string, default: wav, enum: [wav] }
@@ -2091,7 +2103,37 @@ models:
     endpoint: http://audio-chatterbox:8107/generate
     fields:
       text: { type: string, required: true, max_length: 300 }
-      language_id: { type: string, default: en, enum: [en, ar, da, de, el, es, fi, fr, he, hi, it, ja, ko, ms, nl, no, pl, pt, ru, sv, sw, tr, zh] }
+      language_id:
+        {
+          type: string,
+          default: en,
+          enum:
+            [
+              en,
+              ar,
+              da,
+              de,
+              el,
+              es,
+              fi,
+              fr,
+              he,
+              hi,
+              it,
+              ja,
+              ko,
+              ms,
+              nl,
+              no,
+              pl,
+              pt,
+              ru,
+              sv,
+              sw,
+              tr,
+              zh,
+            ],
+        }
       audio_prompt_path: { type: string, required: false }
       exaggeration: { type: number, default: 0.5, min: 0.0, max: 2.0 }
       temperature: { type: number, default: 0.8, min: 0.05, max: 5.0 }
@@ -2191,13 +2233,14 @@ models:
     fields:
       text: { type: string, required: true, max_length: 12000 }
       speaker: { type: integer, default: 0, min: 0, max: 10 }
-      max_audio_length_ms: { type: integer, default: 10000, min: 1000, max: 30000 }
+      max_audio_length_ms:
+        { type: integer, default: 10000, min: 1000, max: 30000 }
       format: { type: string, default: wav, enum: [wav] }
 
-  # ===========================================================================
-  # Commercially-usable audio models added to reach >=20 per category.
-  # Ranked by Hugging Face download popularity. implemented:false until runner.
-  # ===========================================================================
+    # ===========================================================================
+    # Commercially-usable audio models added to reach >=20 per category.
+    # Ranked by Hugging Face download popularity. implemented:false until runner.
+    # ===========================================================================
     license: model-card-required
     commercial_use: no
   parler-tts-mini-v1:
@@ -2336,3 +2379,37 @@ models:
     fields:
       text: { type: string, required: true, max_length: 12000 }
       format: { type: string, default: wav, enum: [wav] }
+
+  pp-ocr-v5:
+    display_name: PaddleOCR PP-OCRv5
+    task: ocr
+    modality: image
+    service: vision-ocr
+    family: vision-ocr
+    endpoint: http://vision-ocr:8120/generate/ocr/paddle
+    mode: sync
+    license: apache-2.0
+    source_repo: PaddlePaddle/PaddleOCR
+    commercial_use: "yes"
+    implemented: true
+    fields:
+      prompt: { type: string, required: false, max_length: 4000 }
+      image: { type: image, required: true }
+      language: { type: string, required: false, default: auto }
+
+  rtdetr-r50vd:
+    display_name: RT-DETR r50vd
+    task: object-detection
+    modality: image
+    service: vision-detection
+    family: vision-detection
+    endpoint: http://vision-detection:8121/generate/detect/rtdetr
+    mode: sync
+    license: apache-2.0
+    source_repo: PekingU/rtdetr_r50vd
+    commercial_use: "yes"
+    implemented: true
+    fields:
+      prompt: { type: string, required: false, max_length: 4000 }
+      image: { type: image, required: true }
+      confidence_threshold: { type: number, default: 0.5, min: 0.0, max: 1.0 }
