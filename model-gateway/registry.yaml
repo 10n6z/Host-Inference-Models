@@ -82,6 +82,10 @@ services:
     name: vision-tesseract
     family: vision-tesseract
     base_url: http://vision-tesseract:8122
+  vision-ocr-ensemble:
+    name: vision-ocr-ensemble
+    family: vision-ocr-ensemble
+    base_url: http://vision-ocr-ensemble:8123
 models:
   "deepseek-coder:6.7b":
     display_name: "deepseek-coder:6.7b"
@@ -2429,6 +2433,23 @@ models:
     mode: sync
     license: apache-2.0
     source_repo: tesseract-ocr/tesseract
+    commercial_use: "yes"
+    implemented: true
+    fields:
+      prompt: { type: string, required: false, max_length: 4000 }
+      image: { type: image, required: true }
+      language: { type: string, required: false, default: auto }
+
+  ocr-ensemble:
+    display_name: PaddleOCR + Tesseract Ensemble
+    task: ocr
+    modality: image
+    service: vision-ocr-ensemble
+    family: vision-ocr-ensemble
+    endpoint: http://vision-ocr-ensemble:8123/generate/ocr/ensemble
+    mode: sync
+    license: apache-2.0
+    source_repo: PaddlePaddle/PaddleOCR
     commercial_use: "yes"
     implemented: true
     fields:

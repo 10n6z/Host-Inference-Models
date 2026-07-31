@@ -326,6 +326,21 @@ services:
     networks:
       - model-server
 
+  vision-ocr-ensemble:
+    build:
+      context: .
+      dockerfile: services/vision-ocr-ensemble/Dockerfile
+    expose:
+      - "8123"
+    environment:
+      VISION_OCR_PADDLE_URL: http://vision-ocr:8120/generate/ocr/paddle
+      VISION_OCR_TESSERACT_URL: http://vision-tesseract:8122/generate/ocr/tesseract
+    depends_on:
+      - vision-ocr
+      - vision-tesseract
+    networks:
+      - model-server
+
 networks:
   model-server:
     driver: bridge
