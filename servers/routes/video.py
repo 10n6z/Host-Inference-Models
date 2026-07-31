@@ -10,6 +10,7 @@ import base64
 import binascii
 import io
 import mimetypes
+import os
 import time
 import uuid
 from typing import Any, Optional
@@ -55,7 +56,10 @@ from runners.text_to_video.wan_t2v_14b_runner import WanT2V14BRunner
 from runners.text_to_video.wan_t2v_runner import WanT2VRunner
 
 router = APIRouter()
-_run_with_timeout = partial(_run_with_timeout_base, gpu_uuid_env="VIDEO_GPU_UUID")
+_run_with_timeout = partial(
+    _run_with_timeout_base,
+    gpu_uuid_env="VIDEO_GPU_UUID" if os.getenv("VIDEO_GPU_UUID") else None,
+)
 
 wan_t2v_runner = WanT2VRunner()
 wan_t2v_14b_runner = WanT2V14BRunner()

@@ -126,6 +126,8 @@ def test_launcher_and_routes_pin_each_modality():
     assert 'MODEL_SERVER_CUDA_VISIBLE_DEVICES_DEFAULT="${IMAGE_GPU_UUID},${VIDEO_GPU_UUID}"' in launcher
     assert "IMAGE_GPU_UUID" in (ROOT / "servers/routes/image.py").read_text(encoding="utf-8")
     assert "VIDEO_GPU_UUID" in (ROOT / "servers/routes/video.py").read_text(encoding="utf-8")
+    assert 'gpu_uuid_env="IMAGE_GPU_UUID" if os.getenv("IMAGE_GPU_UUID") else None' in (ROOT / "servers/routes/image.py").read_text(encoding="utf-8")
+    assert 'gpu_uuid_env="VIDEO_GPU_UUID" if os.getenv("VIDEO_GPU_UUID") else None' in (ROOT / "servers/routes/video.py").read_text(encoding="utf-8")
 
 
 def test_compose_wires_fail_closed_preflight_for_vision_services():

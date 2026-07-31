@@ -10,6 +10,7 @@ import base64
 import binascii
 import io
 import mimetypes
+import os
 import time
 import uuid
 from typing import Any, Optional
@@ -63,7 +64,10 @@ from runners.image_to_image.qwen_image_edit import QwenImageEditRunner
 from runners.image_to_image.sd15_inpaint import SD15InpaintRunner
 
 router = APIRouter()
-_run_with_timeout = partial(_run_with_timeout_base, gpu_uuid_env="IMAGE_GPU_UUID")
+_run_with_timeout = partial(
+    _run_with_timeout_base,
+    gpu_uuid_env="IMAGE_GPU_UUID" if os.getenv("IMAGE_GPU_UUID") else None,
+)
 
 flux_runner = FluxSchnellRunner()
 sd35_runner = SD35MediumRunner()
