@@ -25,6 +25,13 @@ if str(SERVICES_ROOT) not in sys.path:
 from common.responses import build_failed_response, build_success_response, utc_now_iso
 from adapters import ollama
 from auth import GatewayAuthError, GatewayClaims, require_gateway_scope, require_model_scope
+from assets import AssetTooLargeError, save_tenant_asset
+from tenant_store import (
+    TenantGatewayJob,
+    get_asset as get_tenant_asset,
+    get_job as get_tenant_job,
+    record_job as record_tenant_job,
+)
 
 load_dotenv(REPO_ROOT / "servers" / ".env")
 load_dotenv(REPO_ROOT / ".env")
@@ -455,6 +462,17 @@ async def generate(request: Request, claims: GatewayClaims = Depends(require_gat
             "response": success_payload,
             "updated_at": utc_now_iso(),
         }
+        record_tenant_job(
+            TenantGatewayJob(
+                id=request_id,
+                tenant_id=claims.tenant_id,
+                model=model_id,
+                status=success_payload.get("status"),
+                model_job_id=success_payload.get("model_job_id") or success_payload.get("job_id"),
+                response=success_payload,
+                updated_at=utc_now_iso(),
+            )
+        )
         return JSONResponse(status_code=202, content=success_payload)
     return JSONResponse(status_code=200, content=success_payload)
 
@@ -496,17 +514,84 @@ async def upload_audio(request: Request, file: UploadFile = File(...)):
     return {"path": str(dest), "url": f"{public_base}/outputs/uploads/{stored_name}"}
 
 
+def _unknown_job_response(job_id: str) -> JSONResponse:
+    # Identical payload whether the job never existed or belongs to another
+    # tenant, so a caller cannot distinguish "not found" from "not yours".
+    payload = build_failed_response(
+        model="unknown",
+        service="model-gateway",
+        family="model-gateway",
+        error_type="UnknownJob",
+        message=f"Unknown gateway job '{job_id}'.",
+        request_id=job_id,
+    )
+    return JSONResponse(status_code=404, content=payload)
+
+
 @app.get("/jobs/{job_id}")
-def get_job(job_id: str):
-    job = gateway_jobs.get(job_id)
+def get_job(job_id: str, claims: GatewayClaims = Depends(require_gateway_scope)):
+    job = get_tenant_job(claims.tenant_id, job_id)
     if job is None:
+        return _unknown_job_response(job_id)
+    # Same shape the old unscoped lookup returned (request_id/model/status/
+    # model_job_id/response/updated_at), so existing consumers keep working.
+    return {
+        "request_id": job.id,
+        "model": job.model,
+        "status": job.status,
+        "model_job_id": job.model_job_id,
+        "response": job.response,
+        "updated_at": job.updated_at,
+    }
+
+
+def _unknown_asset_response(asset_id: str) -> JSONResponse:
+    payload = build_failed_response(
+        model="unknown",
+        service="model-gateway",
+        family="model-gateway",
+        error_type="UnknownAsset",
+        message=f"Unknown gateway asset '{asset_id}'.",
+        request_id=asset_id,
+    )
+    return JSONResponse(status_code=404, content=payload)
+
+
+@app.post("/assets")
+async def upload_asset(
+    file: UploadFile = File(...),
+    claims: GatewayClaims = Depends(require_gateway_scope),
+):
+    try:
+        asset = await save_tenant_asset(claims.tenant_id, file)
+    except AssetTooLargeError:
         payload = build_failed_response(
             model="unknown",
             service="model-gateway",
             family="model-gateway",
-            error_type="UnknownJob",
-            message=f"Unknown gateway job '{job_id}'.",
-            request_id=job_id,
+            error_type="AssetTooLarge",
+            message="Uploaded asset exceeds the configured size limit.",
+            request_id=uuid.uuid4().hex,
         )
-        return JSONResponse(status_code=404, content=payload)
-    return job
+        return JSONResponse(status_code=413, content=payload)
+    return {
+        "id": asset.id,
+        "mime_type": asset.mime_type,
+        "byte_length": asset.byte_length,
+        "sha256": asset.sha256,
+    }
+
+
+@app.get("/assets/{asset_id}")
+def get_asset_metadata(
+    asset_id: str, claims: GatewayClaims = Depends(require_gateway_scope)
+):
+    asset = get_tenant_asset(claims.tenant_id, asset_id)
+    if asset is None:
+        return _unknown_asset_response(asset_id)
+    return {
+        "id": asset.id,
+        "mime_type": asset.mime_type,
+        "byte_length": asset.byte_length,
+        "sha256": asset.sha256,
+    }
