@@ -45,7 +45,7 @@ def test_service_control_accepts_verified_compose_shape(tmp_path):
 @pytest.mark.parametrize(
     "overrides, message",
     [
-        ({"manager": "tmux"}, "manager"),
+        ({"manager": "kubernetes"}, "manager"),
         ({"service_name": ""}, "service_name"),
         ({"health_url": "http://example.test/health"}, "loopback"),
         ({"restart_timeout_seconds": 0}, "timeout"),
@@ -66,6 +66,55 @@ def test_restart_uses_compose_service_and_waits_for_health(tmp_path):
         wait=lambda url, timeout: health.append((url, timeout)),
     )
     assert commands[0][0] == ["docker", "compose", "restart", "model-server"]
+    assert health[0][0] == "http://127.0.0.1:8001/health"
+
+
+def tmux_config(tmp_path, **overrides):
+    values = {
+        "manager": "tmux",
+        "service_name": "model-server",
+        "session_name": "model-server",
+        "start_script": "/home/long/Host-Inference-Models/start_model_server.sh",
+        "health_url": "http://127.0.0.1:8001/health",
+        "restart_timeout_seconds": 120,
+    }
+    values.update(overrides)
+    body = "combined_server:\n" + "\n".join(f"  {key}: {value!r}" for key, value in values.items()) + "\n"
+    path = tmp_path / "service-control.yaml"
+    path.write_text(body, encoding="utf-8")
+    return path
+
+
+def test_service_control_rejects_tmux_config_missing_session_name(tmp_path):
+    with pytest.raises(ValueError, match="session_name"):
+        service_control.load_service_control(tmux_config(tmp_path, session_name=""))
+
+
+def test_service_control_rejects_tmux_config_missing_start_script(tmp_path):
+    with pytest.raises(ValueError, match="start_script"):
+        service_control.load_service_control(tmux_config(tmp_path, start_script=""))
+
+
+def test_service_control_accepts_verified_tmux_shape(tmp_path):
+    result = service_control.load_service_control(tmux_config(tmp_path))
+    assert result.manager == "tmux"
+    assert result.session_name == "model-server"
+    assert result.start_script == "/home/long/Host-Inference-Models/start_model_server.sh"
+
+
+def test_restart_uses_tmux_kill_and_respawn_and_waits_for_health(tmp_path):
+    control = service_control.load_service_control(tmux_config(tmp_path))
+    commands = []
+    health = []
+    service_control.restart_combined_server(
+        control,
+        run=lambda command, **kwargs: commands.append((command, kwargs)),
+        wait=lambda url, timeout: health.append((url, timeout)),
+    )
+    command = commands[0][0]
+    assert command[0] == "sh"
+    assert "tmux kill-session -t model-server" in command[2]
+    assert "start_model_server.sh" in command[2]
     assert health[0][0] == "http://127.0.0.1:8001/health"
 
 

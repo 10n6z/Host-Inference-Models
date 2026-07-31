@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import shlex
 import subprocess
 import time
 from dataclasses import dataclass
@@ -20,6 +21,8 @@ class ServiceControl:
     service_name: str
     health_url: str
     restart_timeout_seconds: float
+    session_name: str | None = None
+    start_script: str | None = None
 
 
 def load_service_control(path: Path) -> ServiceControl:
@@ -33,8 +36,8 @@ def load_service_control(path: Path) -> ServiceControl:
     if not isinstance(combined, dict):
         raise ValueError("combined_server config is required")
     manager = combined.get("manager")
-    if manager not in {"systemd", "docker-compose"}:
-        raise ValueError("manager must be systemd or docker-compose")
+    if manager not in {"systemd", "docker-compose", "tmux"}:
+        raise ValueError("manager must be systemd, docker-compose, or tmux")
     service_name = combined.get("service_name")
     if not isinstance(service_name, str) or not service_name.strip():
         raise ValueError("service_name is required")
@@ -45,7 +48,27 @@ def load_service_control(path: Path) -> ServiceControl:
     timeout = combined.get("restart_timeout_seconds")
     if not isinstance(timeout, (int, float)) or timeout <= 0:
         raise ValueError("restart_timeout_seconds must be positive")
-    return ServiceControl(manager, service_name.strip(), health_url, float(timeout))
+
+    session_name = None
+    start_script = None
+    if manager == "tmux":
+        session_name = combined.get("session_name")
+        if not isinstance(session_name, str) or not session_name.strip():
+            raise ValueError("session_name is required for the tmux manager")
+        start_script = combined.get("start_script")
+        if not isinstance(start_script, str) or not start_script.strip():
+            raise ValueError("start_script is required for the tmux manager")
+        session_name = session_name.strip()
+        start_script = start_script.strip()
+
+    return ServiceControl(
+        manager,
+        service_name.strip(),
+        health_url,
+        float(timeout),
+        session_name=session_name,
+        start_script=start_script,
+    )
 
 
 def wait_for_health(
@@ -67,18 +90,28 @@ def wait_for_health(
     raise TimeoutError(f"combined server health did not recover: {last_error}")
 
 
+def _restart_command(config: ServiceControl) -> list[str]:
+    if config.manager == "systemd":
+        return ["systemctl", "restart", config.service_name]
+    if config.manager == "docker-compose":
+        return ["docker", "compose", "restart", config.service_name]
+    # tmux: kill any existing session (ignore absence), then respawn via the
+    # start script. tmux has no "restart" verb, so this is the equivalent.
+    assert config.session_name and config.start_script
+    shell = (
+        f"tmux kill-session -t {shlex.quote(config.session_name)} 2>/dev/null; "
+        f"exec {shlex.quote(config.start_script)}"
+    )
+    return ["sh", "-c", shell]
+
+
 def restart_combined_server(
     config: ServiceControl,
     *,
     run: Callable[..., object] = subprocess.run,
     wait: Callable[[str, float], None] = wait_for_health,
 ) -> None:
-    command = (
-        ["systemctl", "restart", config.service_name]
-        if config.manager == "systemd"
-        else ["docker", "compose", "restart", config.service_name]
-    )
-    run(command, check=True, timeout=config.restart_timeout_seconds)
+    run(_restart_command(config), check=True, timeout=config.restart_timeout_seconds)
     wait(config.health_url, config.restart_timeout_seconds)
 
 

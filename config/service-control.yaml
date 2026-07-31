@@ -1,0 +1,7 @@
+combined_server:
+  manager: tmux
+  service_name: model-server
+  session_name: model-server
+  start_script: /home/long/Host-Inference-Models/start_model_server.sh
+  health_url: http://127.0.0.1:8001/health
+  restart_timeout_seconds: 120
