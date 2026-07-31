@@ -99,8 +99,7 @@ def parse_process_rows(output: str) -> list[GpuProcess]:
             raise PolicyError("nvidia-smi returned a non-numeric pid or memory value") from exc
         if not gpu_uuid or not process_name or parsed_pid <= 0 or parsed_memory < 0:
             raise PolicyError("nvidia-smi returned an invalid process row")
-        rows.append(GpuProcess(gpu_uuid, parsed_pid, process_name, parsed_memory)
-        )
+        rows.append(GpuProcess(gpu_uuid, parsed_pid, process_name, parsed_memory))
     return rows
 
 
@@ -122,6 +121,23 @@ def read_nvidia_processes() -> list[GpuProcess]:
     return parse_process_rows(result.stdout)
 
 
+def read_visible_gpu_uuids() -> list[str]:
+    try:
+        result = subprocess.run(
+            ["nvidia-smi", "--query-gpu=uuid", "--format=csv,noheader"],
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        raise PolicyError(f"could not query visible GPUs: {exc}") from exc
+    uuids = [line.strip() for line in result.stdout.splitlines() if line.strip()]
+    if not uuids:
+        raise PolicyError("nvidia-smi returned no visible GPUs")
+    return uuids
+
+
 def _matches(pattern: str, process_name: str) -> bool:
     process = process_name.casefold()
     candidate = pattern.casefold()
@@ -132,16 +148,38 @@ def find_violations(
     workloads: dict[str, Workload],
     process_rows: list[GpuProcess],
     target_service: str | None,
+    visible_gpu_uuids: list[str] | None = None,
 ) -> list[dict[str, Any]]:
     if target_service is not None and target_service not in workloads:
         raise PolicyError(f"unknown target service: {target_service}")
     target = workloads.get(target_service) if target_service else None
+    known_gpu_uuids = {
+        gpu_uuid for workload in workloads.values() for gpu_uuid in workload.allowed_gpu_uuids
+    }
+    if visible_gpu_uuids is not None:
+        unknown_gpu_uuids = set(visible_gpu_uuids) - known_gpu_uuids
+        if unknown_gpu_uuids:
+            raise PolicyError(f"visible GPU UUIDs are not in policy: {sorted(unknown_gpu_uuids)}")
+        if target is not None and not set(target.allowed_gpu_uuids).issubset(visible_gpu_uuids):
+            raise PolicyError(f"{target_service} target GPU is not visible")
     violations: list[dict[str, Any]] = []
     for row in process_rows:
         if target is not None:
             if row.gpu_uuid not in target.allowed_gpu_uuids:
                 continue
-            if any(_matches(pattern, row.process_name) for pattern in target.allowed_process_patterns):
+            peer_workloads = [
+                workload
+                for workload in workloads.values()
+                if workload.co_residency_group
+                and workload.co_residency_group == target.co_residency_group
+                and row.gpu_uuid in workload.allowed_gpu_uuids
+            ]
+            allowed_patterns = [
+                pattern
+                for workload in [target, *peer_workloads]
+                for pattern in workload.allowed_process_patterns
+            ]
+            if any(_matches(pattern, row.process_name) for pattern in allowed_patterns):
                 continue
             violations.append(
                 {
@@ -175,9 +213,10 @@ def check_gpu_ownership(
     policy_path: Path,
     process_rows: list[GpuProcess],
     target_service: str | None = None,
+    visible_gpu_uuids: list[str] | None = None,
 ) -> OwnershipReport:
     policy_version, workloads = load_policy(policy_path)
-    violations = find_violations(workloads, process_rows, target_service)
+    violations = find_violations(workloads, process_rows, target_service, visible_gpu_uuids)
     return OwnershipReport(
         policy_version=policy_version,
         checked_at=datetime.now(timezone.utc).isoformat(),
@@ -194,7 +233,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args(argv)
     try:
-        report = check_gpu_ownership(args.policy, read_nvidia_processes(), args.target_service)
+        report = check_gpu_ownership(
+            args.policy,
+            read_nvidia_processes(),
+            args.target_service,
+            read_visible_gpu_uuids(),
+        )
     except PolicyError as exc:
         print(json.dumps({"error": str(exc)}, sort_keys=True))
         return 2

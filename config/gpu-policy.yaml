@@ -4,9 +4,8 @@ workloads:
     allowed_gpu_uuids:
       - GPU-abffce46-a266-a0b8-8f86-e40d19fd546e
     allowed_process_patterns:
-      - image-server
-      - flux
-      - python3.11
+      - host-models-flux2
+      - host-models
   vision-planner:
     allowed_gpu_uuids:
       - GPU-47cba434-13c2-1aca-e112-f8d1c9659d5a
@@ -20,15 +19,13 @@ workloads:
     allowed_process_patterns:
       - vision-ocr
       - paddle
-      - /usr/bin/python
     co_residency_group: vision-gpu-1
   video-generation:
     allowed_gpu_uuids:
       - GPU-c808af26-9750-cfe0-9b8a-b18871c6cfed
     allowed_process_patterns:
-      - video-server
+      - host-models
       - framepack
-      - python3.10
   vision-detection:
     allowed_gpu_uuids:
       - GPU-b8a1d704-80b3-37f8-c2ed-e764700c5326
@@ -36,5 +33,4 @@ workloads:
       - vision-detection
       - yolox
       - grounding-dino
-      - /usr/local/bin/python
     co_residency_group: vision-gpu-3

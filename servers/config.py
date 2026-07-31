@@ -106,7 +106,21 @@ _CUDA_FAILURE_MARKERS = (
 def _visible_gpu_tokens() -> list[str]:
     raw = os.getenv("CUDA_VISIBLE_DEVICES") or os.getenv("NVIDIA_VISIBLE_DEVICES") or ""
     if raw.strip() and raw.strip().lower() not in {"all", "none", "void"}:
-        return [item.strip() for item in raw.split(",") if item.strip()]
+        tokens = [item.strip() for item in raw.split(",") if item.strip()]
+        if all(token.isdigit() for token in tokens):
+            try:
+                result = subprocess.run(
+                    ["nvidia-smi", "--query-gpu=uuid", "--format=csv,noheader"],
+                    check=True,
+                    capture_output=True,
+                    text=True,
+                    timeout=10,
+                )
+                all_uuids = [line.strip() for line in result.stdout.splitlines() if line.strip()]
+                return [all_uuids[int(token)] for token in tokens]
+            except (IndexError, ValueError, OSError, subprocess.SubprocessError):
+                return []
+        return tokens
     try:
         result = subprocess.run(
             ["nvidia-smi", "--query-gpu=uuid", "--format=csv,noheader"],

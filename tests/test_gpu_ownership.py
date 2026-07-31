@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 import sys
 from pathlib import Path
 
+import pytest
 import yaml
 
 
@@ -33,12 +35,67 @@ def test_allows_planner_and_ocr_to_share_gpu_1():
     ]
     report = gpu_ownership.check_gpu_ownership(ROOT / "config/gpu-policy.yaml", rows)
     assert report.blocking_pids == ()
+    target_report = gpu_ownership.check_gpu_ownership(ROOT / "config/gpu-policy.yaml", rows, "vision-ocr")
+    assert target_report.blocking_pids == ()
+
+
+def test_rejects_unrecognized_process_on_reserved_gpu():
+    rows = [gpu_ownership.GpuProcess(GPU_1_UUID, 701, "rogue-worker", 1)]
+    report = gpu_ownership.check_gpu_ownership(ROOT / "config/gpu-policy.yaml", rows)
+    assert report.blocking_pids == (701,)
+    assert report.violations[0]["reason"] == "unrecognized_process"
+
+
+def test_rejects_gpu_uuid_not_in_policy():
+    rows = [gpu_ownership.GpuProcess(GPU_1_UUID, 703, "vision-ocr", 1)]
+    with pytest.raises(gpu_ownership.PolicyError):
+        gpu_ownership.check_gpu_ownership(
+            ROOT / "config/gpu-policy.yaml",
+            rows,
+            "vision-ocr",
+            [GPU_1_UUID, "GPU-unlisted"],
+        )
 
 
 def test_ignores_processes_on_other_gpus_for_target_service():
     rows = [gpu_ownership.GpuProcess(GPU_0_UUID, 700, "vision-ocr", 1)]
     report = gpu_ownership.check_gpu_ownership(ROOT / "config/gpu-policy.yaml", rows, "vision-ocr")
     assert report.blocking_pids == ()
+
+
+@pytest.mark.parametrize(
+    "output",
+    [
+        "GPU-1,not-a-pid,worker,10",
+        "GPU-1,10,worker,-1",
+        "GPU-1,10,worker",
+    ],
+)
+def test_rejects_malformed_nvidia_rows(output: str):
+    with pytest.raises(gpu_ownership.PolicyError):
+        gpu_ownership.parse_process_rows(output)
+
+
+def test_checker_main_returns_3_for_blocking_process(monkeypatch, capsys):
+    monkeypatch.setattr(
+        gpu_ownership,
+        "read_nvidia_processes",
+        lambda: [gpu_ownership.GpuProcess(GPU_1_UUID, 702, "rogue-worker", 1)],
+    )
+    monkeypatch.setattr(gpu_ownership, "read_visible_gpu_uuids", lambda: [GPU_1_UUID])
+    exit_code = gpu_ownership.main(["--policy", str(ROOT / "config/gpu-policy.yaml"), "--json"])
+    assert exit_code == 3
+    assert json.loads(capsys.readouterr().out)["blockingPids"] == [702]
+
+
+def test_checker_main_returns_2_for_nvidia_failure(monkeypatch, capsys):
+    def fail():
+        raise gpu_ownership.PolicyError("nvidia-smi failed")
+
+    monkeypatch.setattr(gpu_ownership, "read_nvidia_processes", fail)
+    exit_code = gpu_ownership.main(["--policy", str(ROOT / "config/gpu-policy.yaml"), "--json"])
+    assert exit_code == 2
+    assert json.loads(capsys.readouterr().out)["error"] == "nvidia-smi failed"
 
 
 def test_rejects_malformed_policy(tmp_path: Path):
@@ -66,5 +123,20 @@ def test_launcher_and_routes_pin_each_modality():
     assert f'VIDEO_GPU_UUID="{GPU_2_UUID}"' in launcher
     assert f'IMAGE_GPU_UUID="{GPU_0_UUID}"' in standalone_launcher
     assert f'VIDEO_GPU_UUID="{GPU_2_UUID}"' in standalone_launcher
+    assert 'MODEL_SERVER_CUDA_VISIBLE_DEVICES_DEFAULT="${IMAGE_GPU_UUID},${VIDEO_GPU_UUID}"' in launcher
     assert "IMAGE_GPU_UUID" in (ROOT / "servers/routes/image.py").read_text(encoding="utf-8")
     assert "VIDEO_GPU_UUID" in (ROOT / "servers/routes/video.py").read_text(encoding="utf-8")
+
+
+def test_compose_wires_fail_closed_preflight_for_vision_services():
+    compose = yaml.safe_load((ROOT / "docker-compose.yml").read_text(encoding="utf-8"))
+    for service_name, port in (("vision-ocr", "8120"), ("vision-detection", "8121")):
+        service = compose["services"][service_name]
+        assert service["environment"]["HF_HOME"] == "/gpt-lab/long/models/hf"
+        assert service["volumes"][-2:] == [
+            "./config/gpu-policy.yaml:/app/config/gpu-policy.yaml:ro",
+            "./scripts/check-gpu-ownership.py:/app/scripts/check-gpu-ownership.py:ro",
+        ]
+        entrypoint = " ".join(service["entrypoint"])
+        assert f"--target-service {service_name}" in entrypoint
+        assert f"--port {port}" in entrypoint
