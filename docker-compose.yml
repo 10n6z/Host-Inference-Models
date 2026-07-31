@@ -326,6 +326,24 @@ services:
     networks:
       - model-server
 
+  vision-yolox:
+    build:
+      context: .
+      dockerfile: services/vision-yolox/Dockerfile
+    expose:
+      - "8125"
+    networks:
+      - model-server
+
+  vision-grounding-dino:
+    build:
+      context: .
+      dockerfile: services/vision-grounding-dino/Dockerfile
+    expose:
+      - "8124"
+    networks:
+      - model-server
+
   vision-ocr-ensemble:
     build:
       context: .

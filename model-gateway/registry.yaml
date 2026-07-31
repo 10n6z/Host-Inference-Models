@@ -86,6 +86,14 @@ services:
     name: vision-ocr-ensemble
     family: vision-ocr-ensemble
     base_url: http://vision-ocr-ensemble:8123
+  vision-yolox:
+    name: vision-yolox
+    family: vision-yolox
+    base_url: http://vision-yolox:8125
+  vision-grounding-dino:
+    name: vision-grounding-dino
+    family: vision-grounding-dino
+    base_url: http://vision-grounding-dino:8124
 models:
   "deepseek-coder:6.7b":
     display_name: "deepseek-coder:6.7b"
@@ -2439,6 +2447,42 @@ models:
       prompt: { type: string, required: false, max_length: 4000 }
       image: { type: image, required: true }
       language: { type: string, required: false, default: auto }
+
+  yolox-s:
+    display_name: YOLOX-S
+    task: object-detection
+    modality: image
+    service: vision-yolox
+    family: vision-yolox
+    endpoint: http://vision-yolox:8125/generate/detect/yolox
+    mode: sync
+    license: apache-2.0
+    source_repo: Megvii-BaseDetection/YOLOX
+    commercial_use: "yes"
+    implemented: true
+    fields:
+      prompt: { type: string, required: false, max_length: 4000 }
+      image: { type: image, required: true }
+      confidence_threshold: { type: number, default: 0.25, min: 0.0, max: 1.0 }
+
+  grounding-dino:
+    display_name: Grounding DINO (tiny)
+    task: object-detection
+    modality: image
+    service: vision-grounding-dino
+    family: vision-grounding-dino
+    endpoint: http://vision-grounding-dino:8124/generate/detect/grounding-dino
+    mode: sync
+    license: apache-2.0
+    source_repo: IDEA-Research/grounding-dino-tiny
+    commercial_use: "yes"
+    implemented: true
+    fields:
+      prompt: { type: string, required: false, max_length: 4000 }
+      image: { type: image, required: true }
+      labels: { type: array, required: false }
+      confidence_threshold: { type: number, default: 0.4, min: 0.0, max: 1.0 }
+      text_threshold: { type: number, default: 0.3, min: 0.0, max: 1.0 }
 
   ocr-ensemble:
     display_name: PaddleOCR + Tesseract Ensemble

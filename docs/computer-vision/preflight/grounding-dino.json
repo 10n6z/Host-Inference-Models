@@ -1,0 +1,12 @@
+{
+  "model_id": "grounding-dino",
+  "resolved_revision": "a2bb814dd30d776dcf7e30523b00659f4f141c71",
+  "container_digest": "sha256:b025b417725b1782485c36c96991c67befd7a004904450a50e74d039070073c9",
+  "license": "apache-2.0",
+  "cache_bytes": 689359096,
+  "package_pins": {
+    "torch": "2.6.0",
+    "torchvision": "0.21.0",
+    "transformers": "4.46.3"
+  }
+}

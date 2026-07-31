@@ -1,0 +1,12 @@
+{
+  "model_id": "yolox-s",
+  "resolved_revision": "419778480ab6ec0590e5d3831b3afb3b46ab2aa3",
+  "container_digest": "sha256:c571871e4e16d9aa7be88ea44faaaef2b24fc6afc340d02cec56436114acb9b0",
+  "license": "apache-2.0",
+  "cache_bytes": 72089125,
+  "package_pins": {
+    "torch": "2.6.0",
+    "torchvision": "0.21.0",
+    "yolox": "0.3.0"
+  }
+}
