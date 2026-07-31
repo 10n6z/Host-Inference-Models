@@ -1,0 +1,82 @@
+from __future__ import annotations
+
+import importlib.util
+import sys
+from pathlib import Path
+
+import pytest
+
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+def _load(name: str):
+    spec = importlib.util.spec_from_file_location(name, ROOT / "scripts" / f"{name}.py")
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+service_control = _load("restart-combined-server")
+sample = _load("sample-gpu-ownership")
+
+
+def config(tmp_path, **overrides):
+    values = {
+        "manager": "docker-compose",
+        "service_name": "model-server",
+        "health_url": "http://127.0.0.1:8001/health",
+        "restart_timeout_seconds": 120,
+    }
+    values.update(overrides)
+    body = "combined_server:\n" + "\n".join(f"  {key}: {value!r}" for key, value in values.items()) + "\n"
+    path = tmp_path / "service-control.yaml"
+    path.write_text(body, encoding="utf-8")
+    return path
+
+
+def test_service_control_accepts_verified_compose_shape(tmp_path):
+    result = service_control.load_service_control(config(tmp_path))
+    assert result.service_name == "model-server"
+
+
+@pytest.mark.parametrize(
+    "overrides, message",
+    [
+        ({"manager": "tmux"}, "manager"),
+        ({"service_name": ""}, "service_name"),
+        ({"health_url": "http://example.test/health"}, "loopback"),
+        ({"restart_timeout_seconds": 0}, "timeout"),
+    ],
+)
+def test_service_control_rejects_unsafe_config(tmp_path, overrides, message):
+    with pytest.raises(ValueError, match=message):
+        service_control.load_service_control(config(tmp_path, **overrides))
+
+
+def test_restart_uses_compose_service_and_waits_for_health(tmp_path):
+    control = service_control.load_service_control(config(tmp_path))
+    commands = []
+    health = []
+    service_control.restart_combined_server(
+        control,
+        run=lambda command, **kwargs: commands.append((command, kwargs)),
+        wait=lambda url, timeout: health.append((url, timeout)),
+    )
+    assert commands[0][0] == ["docker", "compose", "restart", "model-server"]
+    assert health[0][0] == "http://127.0.0.1:8001/health"
+
+
+def test_gpu_sampler_writes_one_row_per_interval(tmp_path):
+    output = tmp_path / "sample.jsonl"
+    count = sample.sample_ownership(
+        3,
+        1,
+        output,
+        read_rows=lambda: [{"gpuUuid": "GPU-test", "pid": 12, "usedMemory": 1}],
+        sleep_fn=lambda _: None,
+    )
+    assert count == 3
+    assert len(output.read_text(encoding="utf-8").splitlines()) == 3
