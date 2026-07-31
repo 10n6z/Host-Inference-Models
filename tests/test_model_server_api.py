@@ -15,6 +15,10 @@ def app_module(tmp_path, monkeypatch):
 
     if "model_server" in sys.modules:
         del sys.modules["model_server"]
+    common_module = sys.modules.get("common")
+    common_path = getattr(common_module, "__file__", "")
+    if common_module is not None and str(Path(common_path).resolve()) != str((servers_dir / "common.py").resolve()):
+        del sys.modules["common"]
 
     module = importlib.import_module("model_server")
     module = importlib.reload(module)
