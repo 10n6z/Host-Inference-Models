@@ -94,6 +94,10 @@ services:
     name: vision-grounding-dino
     family: vision-grounding-dino
     base_url: http://vision-grounding-dino:8124
+  vision-planner:
+    name: vision-planner
+    family: vision-planner
+    base_url: http://host.docker.internal:8126
 models:
   "deepseek-coder:6.7b":
     display_name: "deepseek-coder:6.7b"
@@ -2447,6 +2451,26 @@ models:
       prompt: { type: string, required: false, max_length: 4000 }
       image: { type: image, required: true }
       language: { type: string, required: false, default: auto }
+
+  vision-planner:
+    display_name: Mistral-7B-Instruct-v0.3 (self-hosted planner)
+    task: text-generation
+    modality: text
+    provider: vllm
+    runtime_model: mistralai/Mistral-7B-Instruct-v0.3
+    service: vision-planner
+    family: vision-planner
+    endpoint: http://host.docker.internal:8126/v1/chat/completions
+    mode: sync
+    license: apache-2.0
+    source_repo: mistralai/Mistral-7B-Instruct-v0.3
+    commercial_use: "yes"
+    implemented: true
+    fields:
+      prompt: { type: string, required: true, max_length: 12000 }
+      system_instruction: { type: string, required: false, max_length: 8000 }
+      temperature: { type: number, default: 0.7, min: 0.0, max: 2.0 }
+      max_tokens: { type: integer, default: 512, min: 1, max: 8192 }
 
   yolox-s:
     display_name: YOLOX-S

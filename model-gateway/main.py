@@ -23,7 +23,7 @@ if str(SERVICES_ROOT) not in sys.path:
     sys.path.insert(0, str(SERVICES_ROOT))
 
 from common.responses import build_failed_response, build_success_response, utc_now_iso
-from adapters import ollama
+from adapters import ollama, vllm
 from auth import GatewayAuthError, GatewayClaims, require_gateway_scope, require_model_scope
 from assets import AssetTooLargeError, save_tenant_asset
 from tenant_store import (
@@ -352,6 +352,39 @@ async def generate(request: Request, claims: GatewayClaims = Depends(require_gat
                 request_id=request_id,
             )
         except ollama.OllamaAdapterError as exc:
+            payload = build_failed_response(
+                model=model_id,
+                service=service_name,
+                family=family,
+                error_type="ServiceUnavailable" if exc.status_code in (503, 504) else "InferenceError",
+                message=str(exc),
+                request_id=request_id,
+            )
+            return JSONResponse(status_code=exc.status_code, content=payload)
+
+        duration_ms = int((time.perf_counter() - started) * 1000)
+        success_payload = build_success_response(adapter_payload, request_id=request_id, family=family)
+        success_payload["duration_ms"] = duration_ms
+        return JSONResponse(status_code=200, content=success_payload)
+
+    if registry_entry.get("provider") == "vllm":
+        started = time.perf_counter()
+        logger.info(
+            "gateway_vllm_request request_id=%s model=%s service=%s endpoint=%s",
+            request_id,
+            model_id,
+            service_name,
+            target_endpoint,
+        )
+        try:
+            adapter_payload = await vllm.generate(
+                model_id=model_id,
+                entry=registry_entry,
+                raw_body=raw_body,
+                timeout_seconds=GATEWAY_TIMEOUT_SECONDS,
+                request_id=request_id,
+            )
+        except vllm.VllmAdapterError as exc:
             payload = build_failed_response(
                 model=model_id,
                 service=service_name,
