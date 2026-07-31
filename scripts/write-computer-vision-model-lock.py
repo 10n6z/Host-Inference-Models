@@ -29,6 +29,29 @@ def _require_report_field(report: dict[str, Any], field: str) -> str:
     return value.strip()
 
 
+def _require_immutability_anchor(report: dict[str, Any], model_id: str) -> dict[str, str]:
+    """Every entry needs *some* immutable anchor a rebuild can be verified
+    against. Container deployments anchor on the built image digest;
+    host-process deployments (e.g. vLLM services -- see
+    docs/computer-vision/model-preflight-2026-07-31.md for why some models
+    cannot run containerized on this host) anchor on the sha256 of the
+    exact resolved dependency closure ('pip freeze'), which is the
+    equivalent integrity guarantee for a process that has no image to
+    hash."""
+    deployment = report.get("deployment", "container")
+    if deployment not in ("container", "host"):
+        raise ValueError(f"{model_id}: deployment must be 'container' or 'host'")
+    if deployment == "container":
+        digest = _require_report_field(report, "container_digest")
+        if not DIGEST.fullmatch(digest):
+            raise ValueError(f"{model_id}: container_digest must be immutable")
+        return {"deployment": "container", "container_digest": digest}
+    digest = _require_report_field(report, "environment_digest")
+    if not re.fullmatch(r"[0-9a-f]{64}", digest, re.IGNORECASE):
+        raise ValueError(f"{model_id}: environment_digest must be a sha256 hex digest")
+    return {"deployment": "host", "environment_digest": digest}
+
+
 def build_model_lock(reports: list[dict[str, Any]]) -> dict[str, Any]:
     if not reports:
         raise ValueError("at least one preflight report is required")
@@ -37,9 +60,7 @@ def build_model_lock(reports: list[dict[str, Any]]) -> dict[str, Any]:
         model_id = _require_report_field(report, "model_id")
         if model_id in models:
             raise ValueError(f"duplicate model_id: {model_id}")
-        digest = _require_report_field(report, "container_digest")
-        if not DIGEST.fullmatch(digest):
-            raise ValueError(f"{model_id}: container_digest must be immutable")
+        anchor = _require_immutability_anchor(report, model_id)
         license_name = _require_report_field(report, "license")
         cache_bytes = report.get("cache_bytes")
         if isinstance(cache_bytes, bool) or not isinstance(cache_bytes, int) or cache_bytes < 0:
@@ -52,7 +73,7 @@ def build_model_lock(reports: list[dict[str, Any]]) -> dict[str, Any]:
             raise ValueError(f"{model_id}: package_pins must be a string mapping")
         models[model_id] = {
             "revision": require_revision(report),
-            "container_digest": digest,
+            **anchor,
             "license": license_name,
             "cache_bytes": cache_bytes,
             "package_pins": dict(sorted(package_pins.items())),

@@ -1,0 +1,13 @@
+{
+  "model_id": "vision-planner",
+  "resolved_revision": "c170c708c41dac9275d15a8fff4eca08d52bab71",
+  "deployment": "host",
+  "environment_digest": "2e85c3774cb99426024dad112f17d263bac1831ba859053eff17014fa74d6ca4",
+  "license": "apache-2.0",
+  "cache_bytes": 14496078512,
+  "package_pins": {
+    "torch": "2.11.0",
+    "vllm": "0.26.0",
+    "transformers": "5.14.1"
+  }
+}
