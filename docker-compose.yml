@@ -317,6 +317,15 @@ services:
               device_ids: ["GPU-b8a1d704-80b3-37f8-c2ed-e764700c5326"]
               capabilities: [gpu]
 
+  vision-tesseract:
+    build:
+      context: .
+      dockerfile: services/vision-tesseract/Dockerfile
+    expose:
+      - "8122"
+    networks:
+      - model-server
+
 networks:
   model-server:
     driver: bridge
