@@ -2372,6 +2372,7 @@ models:
     service: audio-cosyvoice
     family: audio-cosyvoice
     endpoint: http://audio-cosyvoice:8113/generate
+    include_model: false
     license: apache-2.0
     source_repo: FunAudioLLM/CosyVoice2-0.5B
     commercial_use: "yes"

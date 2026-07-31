@@ -125,7 +125,7 @@ def test_gateway_routes_kokoro_to_family_service(monkeypatch, tmp_path):
     assert called_json["text"] == "hello"
 
 
-def test_gateway_routes_legacy_model_without_model_field(monkeypatch, tmp_path):
+def test_gateway_routes_cosyvoice_without_model_field(monkeypatch, tmp_path):
     gateway = _import_gateway_module(monkeypatch, tmp_path)
     client = TestClient(gateway.app)
 
@@ -148,7 +148,7 @@ def test_gateway_routes_legacy_model_without_model_field(monkeypatch, tmp_path):
     assert response.status_code == 200
     called_url = mock_client.post.await_args.args[0]
     called_json = mock_client.post.await_args.kwargs["json"]
-    assert called_url == "http://audio-legacy:8002/generate/tts/cosyvoice2"
+    assert called_url == "http://audio-cosyvoice:8113/generate"
     assert "model" not in called_json
     assert called_json["text"] == "hello"
     assert called_json["seed"] == 42
