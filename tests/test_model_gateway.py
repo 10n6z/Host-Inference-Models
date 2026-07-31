@@ -1,5 +1,10 @@
+import base64
+import hashlib
+import hmac
 import importlib
+import json
 import sys
+import time
 from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
@@ -10,12 +15,40 @@ from fastapi.testclient import TestClient
 REPO_ROOT = Path(__file__).resolve().parents[1]
 GATEWAY_DIR = REPO_ROOT / "model-gateway"
 SERVICES_DIR = REPO_ROOT / "services"
+GATEWAY_SECRET = "gateway-model-gateway-test-secret-with-sufficient-length"
+
+
+def _b64(value):
+    return base64.urlsafe_b64encode(value).rstrip(b"=").decode()
+
+
+def _gateway_client(gateway):
+    models = gateway._models_payload()
+    payload = {
+        "iss": "sw4e-control-plane",
+        "aud": "model-gateway",
+        "exp": int(time.time()) + 300,
+        "userId": "test-user",
+        "tenantId": "test-tenant",
+        "permittedTasks": sorted({model["task"] for model in models}),
+        "permittedModelIds": sorted({model["id"] for model in models}),
+    }
+    header = {"alg": "HS256", "typ": "JWT"}
+    signed = f"{_b64(json.dumps(header, separators=(',', ':')).encode())}.{_b64(json.dumps(payload, separators=(',', ':')).encode())}"
+    signature = hmac.new(
+        GATEWAY_SECRET.encode(), signed.encode(), hashlib.sha256
+    ).digest()
+    return TestClient(
+        gateway.app,
+        headers={"Authorization": f"Bearer {signed}.{_b64(signature)}"},
+    )
 
 
 def _import_gateway_module(monkeypatch, tmp_path):
     monkeypatch.syspath_prepend(str(GATEWAY_DIR))
     monkeypatch.syspath_prepend(str(SERVICES_DIR))
     monkeypatch.setenv("MODEL_REGISTRY_PATH", str(GATEWAY_DIR / "registry.yaml"))
+    monkeypatch.setenv("MODEL_GATEWAY_JWT_SECRET", GATEWAY_SECRET)
     if "main" in sys.modules:
         del sys.modules["main"]
     return importlib.import_module("main")
@@ -57,7 +90,7 @@ def _import_kokoro_service(tmp_path, monkeypatch):
 
 def test_gateway_health_and_models(monkeypatch, tmp_path):
     gateway = _import_gateway_module(monkeypatch, tmp_path)
-    client = TestClient(gateway.app)
+    client = _gateway_client(gateway)
 
     health = client.get("/health")
     assert health.status_code == 200
@@ -75,7 +108,7 @@ def test_gateway_health_and_models(monkeypatch, tmp_path):
 
 def test_gateway_unknown_model_returns_contract(monkeypatch, tmp_path):
     gateway = _import_gateway_module(monkeypatch, tmp_path)
-    client = TestClient(gateway.app)
+    client = _gateway_client(gateway)
 
     response = client.post("/generate", json={"model": "does-not-exist", "text": "hello"})
     assert response.status_code == 404
@@ -88,7 +121,7 @@ def test_gateway_unknown_model_returns_contract(monkeypatch, tmp_path):
 
 def test_gateway_routes_kokoro_to_family_service(monkeypatch, tmp_path):
     gateway = _import_gateway_module(monkeypatch, tmp_path)
-    client = TestClient(gateway.app)
+    client = _gateway_client(gateway)
 
     upstream_payload = {
         "success": True,
@@ -127,7 +160,7 @@ def test_gateway_routes_kokoro_to_family_service(monkeypatch, tmp_path):
 
 def test_gateway_routes_cosyvoice_without_model_field(monkeypatch, tmp_path):
     gateway = _import_gateway_module(monkeypatch, tmp_path)
-    client = TestClient(gateway.app)
+    client = _gateway_client(gateway)
 
     mock_response = AsyncMock()
     mock_response.status_code = 200
@@ -156,7 +189,7 @@ def test_gateway_routes_cosyvoice_without_model_field(monkeypatch, tmp_path):
 
 def test_gateway_flattens_documented_nested_contract(monkeypatch, tmp_path):
     gateway = _import_gateway_module(monkeypatch, tmp_path)
-    client = TestClient(gateway.app)
+    client = _gateway_client(gateway)
 
     mock_response = AsyncMock()
     mock_response.status_code = 200
@@ -216,7 +249,7 @@ def test_kokoro_service_generate_with_mock_runner(tmp_path, monkeypatch):
 
 def test_gateway_routes_espnet_to_family_service(monkeypatch, tmp_path):
     gateway = _import_gateway_module(monkeypatch, tmp_path)
-    client = TestClient(gateway.app)
+    client = _gateway_client(gateway)
 
     upstream_payload = {
         "success": True,
@@ -250,7 +283,7 @@ def test_gateway_routes_espnet_to_family_service(monkeypatch, tmp_path):
 
 def test_gateway_routes_bark_to_family_service(monkeypatch, tmp_path):
     gateway = _import_gateway_module(monkeypatch, tmp_path)
-    client = TestClient(gateway.app)
+    client = _gateway_client(gateway)
 
     mock_response = AsyncMock()
     mock_response.status_code = 200

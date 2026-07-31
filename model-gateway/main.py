@@ -12,7 +12,7 @@ from typing import Any, Optional
 import httpx
 import yaml
 from dotenv import load_dotenv
-from fastapi import FastAPI, File, Request, UploadFile
+from fastapi import Depends, FastAPI, File, Request, UploadFile
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -24,6 +24,7 @@ if str(SERVICES_ROOT) not in sys.path:
 
 from common.responses import build_failed_response, build_success_response, utc_now_iso
 from adapters import ollama
+from auth import GatewayAuthError, GatewayClaims, require_gateway_scope, require_model_scope
 
 load_dotenv(REPO_ROOT / "servers" / ".env")
 load_dotenv(REPO_ROOT / ".env")
@@ -37,6 +38,11 @@ GATEWAY_PUBLIC_BASE_URL = os.getenv("GATEWAY_PUBLIC_BASE_URL", "http://localhost
 
 app = FastAPI(title="Model Server Gateway")
 gateway_jobs: dict[str, dict[str, Any]] = {}
+
+
+@app.exception_handler(GatewayAuthError)
+async def gateway_auth_error_handler(_: Request, exc: GatewayAuthError):
+    return JSONResponse(status_code=exc.status_code, content={"code": exc.code})
 
 # Serve generated assets so clients only need to reach the gateway, not the
 # per-model containers (their public URLs use internal compose hostnames).
@@ -230,16 +236,27 @@ def health():
 
 
 @app.get("/models")
-def models():
+def models(claims: GatewayClaims = Depends(require_gateway_scope)):
+    models = [
+        model
+        for model in _models_payload()
+        if model["id"] in claims.permitted_model_ids
+        and model["task"] in claims.permitted_tasks
+    ]
+    service_names = {model["service"] for model in models if model.get("service")}
     return {
-        "models": _models_payload(),
-        "services": _registry_services(),
+        "models": models,
+        "services": {
+            name: service
+            for name, service in _registry_services().items()
+            if name in service_names
+        },
         "gateway_public_base_url": GATEWAY_PUBLIC_BASE_URL,
     }
 
 
 @app.post("/generate")
-async def generate(request: Request):
+async def generate(request: Request, claims: GatewayClaims = Depends(require_gateway_scope)):
     try:
         raw_body = await request.json()
     except ValueError:
@@ -288,9 +305,23 @@ async def generate(request: Request):
             error_type="UnknownModel",
             message=f"Unknown model '{model_id}'.",
             request_id=request_id,
-            details={"available_models": sorted(_registry_models().keys())},
+            details={
+                "available_models": sorted(
+                    model_id
+                    for model_id, entry in _registry_models().items()
+                    if model_id in claims.permitted_model_ids
+                    and str(entry.get("task", entry.get("modality", "")))
+                    in claims.permitted_tasks
+                )
+            },
         )
         return JSONResponse(status_code=404, content=payload)
+
+    require_model_scope(
+        claims,
+        str(registry_entry.get("task", registry_entry.get("modality", ""))),
+        model_id,
+    )
 
     target_endpoint = registry_entry["endpoint"]
     family = registry_entry.get("family", registry_entry.get("service", "unknown"))
