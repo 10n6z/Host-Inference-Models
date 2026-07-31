@@ -1,9 +1,18 @@
 import sys
 import types
+import wave
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 RUNNERS_DIR = REPO_ROOT / "servers"
+
+
+def _write_test_wav(path: Path) -> None:
+    with wave.open(str(path), "wb") as wav_file:
+        wav_file.setnchannels(1)
+        wav_file.setsampwidth(2)
+        wav_file.setframerate(24000)
+        wav_file.writeframes(b"\x00\x00" * 240)
 
 
 def _stub_heavy_deps(monkeypatch):
@@ -40,7 +49,7 @@ def test_generate_creates_speaker_when_ref_audio_present(monkeypatch, tmp_path):
 
     class _FakeOutput:
         def save(self, path):
-            Path(path).write_bytes(b"RIFF0000WAVEfmt ")
+            _write_test_wav(Path(path))
 
     class _FakeInterface:
         def create_speaker(self, audio_path, *args):
@@ -56,7 +65,7 @@ def test_generate_creates_speaker_when_ref_audio_present(monkeypatch, tmp_path):
     runner.load = lambda: None  # already "loaded"
 
     ref = tmp_path / "ref.wav"
-    ref.write_bytes(b"RIFF0000WAVEfmt ")
+    _write_test_wav(ref)
     out = tmp_path / "out.wav"
 
     fake_outetts = types.ModuleType("outetts")  # no GenerationConfig attr -> legacy kwargs branch
