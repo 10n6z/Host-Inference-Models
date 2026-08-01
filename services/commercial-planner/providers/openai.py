@@ -36,9 +36,12 @@ VISION_PLAN_RESPONSE_FORMAT = {
 
 OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY")
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
-OPENROUTER_MODEL = os.environ.get(
-    "OPENROUTER_PLANNER_MODEL", "meta-llama/llama-3.1-8b-instruct:free"
-)
+# OpenRouter's free-tier model roster changes over time (verified 2026-08-01:
+# meta-llama/llama-3.1-8b-instruct:free had been retired to paid-only since
+# this default was first picked). Override with OPENROUTER_PLANNER_MODEL if
+# this one is retired too -- check https://openrouter.ai/api/v1/models for
+# current `:free`-suffixed entries.
+OPENROUTER_MODEL = os.environ.get("OPENROUTER_PLANNER_MODEL", "openai/gpt-oss-20b:free")
 OPENROUTER_SYSTEM_PROMPT = (
     "You are a Computer Vision job planner. Given compact task metadata, "
     "respond with ONLY a single JSON object matching this exact schema -- "
