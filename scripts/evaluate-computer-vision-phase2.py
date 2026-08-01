@@ -115,8 +115,11 @@ def verify_manifest(manifest: dict[str, Any], corpus_root: Path) -> list[dict[st
 
 
 def evaluate_ocr(entries: list[dict[str, Any]], predictions: dict[str, Any]) -> dict[str, float]:
+    ocr_entries = [
+        entry for entry in entries if any(str(g).startswith("ocr_") for g in entry.get("groups", []))
+    ]
     grouped: defaultdict[str, list[tuple[str, str]]] = defaultdict(list)
-    for entry in entries:
+    for entry in ocr_entries:
         expected = entry.get("expected_text")
         prediction = predictions.get(entry["id"], {}).get("text")
         if not isinstance(expected, str) or not isinstance(prediction, str):
@@ -129,6 +132,14 @@ def evaluate_ocr(entries: list[dict[str, Any]], predictions: dict[str, Any]) -> 
         summary[f"ocr_{key}_cer"] = sum(error_rate(expected, actual, words=False) for expected, actual in values) / len(values)
         summary[f"ocr_{key}_wer"] = sum(error_rate(expected, actual, words=True) for expected, actual in values) / len(values)
     return summary
+
+
+def _normalize_category(category: str) -> str:
+    # LVIS category names are underscore_joined (e.g. "camera_lens"); an
+    # open-vocabulary detector's text encoder expects natural-language
+    # phrases, so both the query label and the ground-truth key are
+    # normalized to space-separated lowercase for a fair comparison.
+    return " ".join(str(category).strip().lower().replace("_", " ").split())
 
 
 def _iou(box_a: list[float], box_b: list[float]) -> float:
@@ -200,12 +211,12 @@ def _mean_average_precision_50(
         if not isinstance(boxes, list) or not boxes:
             raise ValueError(f"{entry['id']}: expected_boxes are required for detection entries")
         for box in boxes:
-            gt_by_cat[str(box["category"]).strip().lower()].append((entry["id"], box["bbox"]))
+            gt_by_cat[_normalize_category(box["category"])].append((entry["id"], box["bbox"]))
         model_predictions = predictions.get(entry["id"], {}).get(model_key)
         if model_predictions is None:
             raise ValueError(f"{entry['id']}: missing '{model_key}' predictions")
         for box in model_predictions.get("boxes", []):
-            pred_by_cat[str(box["category"]).strip().lower()].append(
+            pred_by_cat[_normalize_category(box["category"])].append(
                 (entry["id"], box["bbox"], float(box.get("score", 1.0)))
             )
     categories = sorted(gt_by_cat)
@@ -225,13 +236,13 @@ def _recall_50(entries: list[dict[str, Any]], predictions: dict[str, Any], model
         boxes = entry.get("expected_boxes")
         if not isinstance(boxes, list) or not boxes:
             raise ValueError(f"{entry['id']}: expected_boxes are required for detection entries")
-        gts = [[str(box["category"]).strip().lower(), box["bbox"], False] for box in boxes]
+        gts = [[_normalize_category(box["category"]), box["bbox"], False] for box in boxes]
         total_gt += len(gts)
         model_predictions = predictions.get(entry["id"], {}).get(model_key)
         if model_predictions is None:
             raise ValueError(f"{entry['id']}: missing '{model_key}' predictions")
         for box in model_predictions.get("boxes", []):
-            pred_category = str(box["category"]).strip().lower()
+            pred_category = _normalize_category(box["category"])
             best_iou, best_j = 0.0, -1
             for j, (gt_category, gt_box, used) in enumerate(gts):
                 if used or gt_category != pred_category:
