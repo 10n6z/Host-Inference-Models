@@ -69,6 +69,43 @@ def test_restart_uses_compose_service_and_waits_for_health(tmp_path):
     assert health[0][0] == "http://127.0.0.1:8001/health"
 
 
+def test_wait_for_health_passes_timeout_as_a_keyword_not_request_body():
+    calls = []
+
+    def fake_open_url(url, timeout):
+        calls.append((url, timeout))
+        return _OkResponse()
+
+    service_control.wait_for_health(
+        "http://127.0.0.1:8001/health",
+        2.0,
+        open_url=fake_open_url,
+        sleep_fn=lambda _: None,
+    )
+    assert calls == [("http://127.0.0.1:8001/health", 2.0)]
+
+
+class _OkResponse:
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc_info):
+        return False
+
+
+def test_wait_for_health_default_open_url_uses_urlopen_timeout_kwarg(monkeypatch):
+    captured = {}
+
+    def fake_urlopen(url, timeout=None, **kwargs):
+        captured["url"] = url
+        captured["timeout"] = timeout
+        return _OkResponse()
+
+    monkeypatch.setattr(service_control, "urlopen", fake_urlopen)
+    service_control.wait_for_health("http://127.0.0.1:8001/health", 2.0, sleep_fn=lambda _: None)
+    assert captured == {"url": "http://127.0.0.1:8001/health", "timeout": 2.0}
+
+
 def tmux_config(tmp_path, **overrides):
     values = {
         "manager": "tmux",

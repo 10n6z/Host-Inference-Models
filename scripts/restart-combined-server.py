@@ -71,11 +71,17 @@ def load_service_control(path: Path) -> ServiceControl:
     )
 
 
+def _open_with_timeout(url: str, timeout: float) -> object:
+    # urlopen's positional signature is (url, data, timeout) -- passing the
+    # per-request timeout positionally sends it as `data` instead.
+    return urlopen(url, timeout=timeout)
+
+
 def wait_for_health(
     health_url: str,
     timeout_seconds: float,
     *,
-    open_url: Callable[[str, float], object] = urlopen,
+    open_url: Callable[[str, float], object] = _open_with_timeout,
     sleep_fn: Callable[[float], None] = time.sleep,
 ) -> None:
     deadline = time.monotonic() + timeout_seconds
