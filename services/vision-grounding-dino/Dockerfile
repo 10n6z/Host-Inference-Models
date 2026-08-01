@@ -24,7 +24,7 @@ WORKDIR /app
 COPY services/vision-grounding-dino/requirements.txt /app/requirements.txt
 RUN pip install --no-cache-dir -r /app/requirements.txt
 
-COPY services/vision-common/metrics.py /app/vision_common_metrics.py
+COPY services/vision-common/vision_common_metrics.py /app/vision_common_metrics.py
 COPY services/vision-grounding-dino/main.py /app/main.py
 
 ENV HF_HOME=/gpt-lab/long/models/hf \

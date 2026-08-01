@@ -19,7 +19,7 @@ RUN python -m pip install --upgrade pip
 COPY services/vision-ocr/requirements.txt /app/requirements.txt
 RUN pip install --no-cache-dir -r /app/requirements.txt
 
-COPY services/vision-common/metrics.py /app/vision_common_metrics.py
+COPY services/vision-common/vision_common_metrics.py /app/vision_common_metrics.py
 COPY services/vision-ocr/main.py /app/main.py
 
 ENV PADDLE_PDX_CACHE_HOME=/gpt-lab/long/models/paddle \

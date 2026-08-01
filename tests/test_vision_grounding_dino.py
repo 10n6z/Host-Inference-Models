@@ -15,6 +15,7 @@ SERVICE_DIR = REPO_ROOT / "services" / "vision-grounding-dino"
 @pytest.fixture
 def service_module(monkeypatch):
     monkeypatch.syspath_prepend(str(SERVICE_DIR))
+    monkeypatch.syspath_prepend(str(REPO_ROOT / "services" / "vision-common"))
     if "main" in sys.modules:
         del sys.modules["main"]
     import main

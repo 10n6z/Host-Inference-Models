@@ -3,7 +3,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from metrics import build_vision_metrics
+from vision_common_metrics import build_vision_metrics
 
 
 def test_records_completed_inference():
