@@ -10,7 +10,7 @@ from __future__ import annotations
 import logging
 import os
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Response
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
@@ -18,11 +18,13 @@ from metadata import JobFixture, build_planning_metadata
 from providers.anthropic import plan_with_anthropic
 from providers.openai import plan_with_openai
 from vision_plan import PlannerError
+from vision_common_metrics import VISION_METRICS_CONTENT_TYPE, build_vision_metrics
 
 logger = logging.getLogger("commercial-planner")
 logging.basicConfig(level=os.environ.get("COMMERCIAL_PLANNER_LOG_LEVEL", "info").upper())
 
 app = FastAPI(title="commercial-planner", version="1.0.0")
+_metrics = build_vision_metrics("commercial-planner")
 
 PLANNER_STATUS_CODES = {
     "REFUSAL": 422,
@@ -49,7 +51,12 @@ def health() -> dict:
     return {"status": "ok", "service": "commercial-planner"}
 
 
-def _run_plan(request: PlanRequest, planner):
+@app.get("/metrics")
+def metrics() -> Response:
+    return Response(content=_metrics.render(), media_type=VISION_METRICS_CONTENT_TYPE)
+
+
+def _run_plan(request: PlanRequest, planner, model_id: str):
     job = JobFixture(
         prompt=request.prompt,
         image_count=request.image_count,
@@ -61,22 +68,23 @@ def _run_plan(request: PlanRequest, planner):
         requested_labels=request.requested_labels,
     )
     metadata = build_planning_metadata(job)
-    try:
-        plan = planner(metadata)
-    except PlannerError as exc:
-        status = PLANNER_STATUS_CODES.get(exc.code, 502)
-        raise HTTPException(status_code=status, detail={"code": exc.code, "message": str(exc)}) from exc
+    with _metrics.observe_inference(model_id):
+        try:
+            plan = planner(metadata)
+        except PlannerError as exc:
+            status = PLANNER_STATUS_CODES.get(exc.code, 502)
+            raise HTTPException(status_code=status, detail={"code": exc.code, "message": str(exc)}) from exc
     return plan.model_dump()
 
 
 @app.post("/generate/plan/openai")
 def generate_plan_openai(request: PlanRequest) -> dict:
-    return _run_plan(request, plan_with_openai)
+    return _run_plan(request, plan_with_openai, "openai")
 
 
 @app.post("/generate/plan/anthropic")
 def generate_plan_anthropic(request: PlanRequest) -> dict:
-    return _run_plan(request, plan_with_anthropic)
+    return _run_plan(request, plan_with_anthropic, "anthropic")
 
 
 @app.exception_handler(HTTPException)

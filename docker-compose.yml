@@ -359,6 +359,21 @@ services:
     networks:
       - model-server
 
+  commercial-planner:
+    build:
+      context: .
+      dockerfile: services/commercial-planner/Dockerfile
+    expose:
+      - "8127"
+    environment:
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_PLANNER_MODEL: ${OPENAI_PLANNER_MODEL:-}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      OPENROUTER_PLANNER_MODEL: ${OPENROUTER_PLANNER_MODEL:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    networks:
+      - model-server
+
 networks:
   model-server:
     driver: bridge

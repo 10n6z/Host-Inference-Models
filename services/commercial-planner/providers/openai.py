@@ -25,7 +25,11 @@ from metadata import PlanningMetadata
 from vision_plan import VISION_PLAN_JSON_SCHEMA, PlannerError, VisionPlan, parse_vision_plan
 
 # Deployment-configured allowlisted model -- never derived from client input.
-DEFAULT_MODEL = os.environ.get("OPENAI_PLANNER_MODEL", "gpt-5.6-luna")
+# `or` (not `.get(key, default)`) because docker-compose's `${VAR:-}`
+# interpolation sets an unset host var to an empty string in the container,
+# not an absent one -- .get()'s default only triggers when the key is
+# missing entirely, so an empty string would silently shadow it.
+DEFAULT_MODEL = os.environ.get("OPENAI_PLANNER_MODEL") or "gpt-5.6-luna"
 
 VISION_PLAN_RESPONSE_FORMAT = {
     "type": "json_schema",
@@ -41,7 +45,7 @@ OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 # this default was first picked). Override with OPENROUTER_PLANNER_MODEL if
 # this one is retired too -- check https://openrouter.ai/api/v1/models for
 # current `:free`-suffixed entries.
-OPENROUTER_MODEL = os.environ.get("OPENROUTER_PLANNER_MODEL", "openai/gpt-oss-20b:free")
+OPENROUTER_MODEL = os.environ.get("OPENROUTER_PLANNER_MODEL") or "openai/gpt-oss-20b:free"
 OPENROUTER_SYSTEM_PROMPT = (
     "You are a Computer Vision job planner. Given compact task metadata, "
     "respond with ONLY a single JSON object matching this exact schema -- "
