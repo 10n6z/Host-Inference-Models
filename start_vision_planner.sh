@@ -16,7 +16,7 @@ set -euo pipefail
 source "$HOME/miniconda3/etc/profile.d/conda.sh"
 conda activate vllm-trial
 
-GPU_UUID="${VISION_PLANNER_GPU_UUID:-GPU-c808af26-9750-cfe0-9b8a-b18871c6cfed}"
+GPU_UUID="${VISION_PLANNER_GPU_UUID:-GPU-47cba434-13c2-1aca-e112-f8d1c9659d5a}"
 
 # tmux's server was started long before this script (it already hosts the
 # flux2-server/model-server sessions) and captured its environment at that
