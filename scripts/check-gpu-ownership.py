@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import os
 import subprocess
 import sys
 from dataclasses import asdict, dataclass
@@ -226,11 +227,47 @@ def check_gpu_ownership(
     )
 
 
+DEFAULT_METRICS_PATH = Path(
+    os.environ.get(
+        "SW4E_GPU_OWNERSHIP_METRICS_PATH",
+        "/gpt-lab/long/computer-vision/metrics/gpu_ownership.prom",
+    )
+)
+
+METRIC_NAME = "sw4e_vision_gpu_ownership_violations_total"
+
+
+def record_gpu_ownership_violations(violation_count: int, metrics_path: Path) -> int:
+    """Adds violation_count to a Prometheus textfile-collector counter file
+    and returns the new cumulative total. No scraper (node_exporter or
+    similar) is deployed on this host yet -- this makes the counter ready
+    for one, it does not by itself make the metric visible to Prometheus."""
+    current = 0
+    if metrics_path.exists():
+        for line in metrics_path.read_text(encoding="utf-8").splitlines():
+            if line.startswith(METRIC_NAME):
+                try:
+                    current = int(float(line.rsplit(" ", 1)[1]))
+                except (IndexError, ValueError):
+                    current = 0
+    new_total = current + violation_count
+    metrics_path.parent.mkdir(parents=True, exist_ok=True)
+    metrics_path.write_text(
+        "# HELP sw4e_vision_gpu_ownership_violations_total Foreign or "
+        "unrecognized processes found on Computer Vision GPUs\n"
+        "# TYPE sw4e_vision_gpu_ownership_violations_total counter\n"
+        f"{METRIC_NAME} {new_total}\n",
+        encoding="utf-8",
+    )
+    return new_total
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--policy", type=Path, required=True)
     parser.add_argument("--target-service")
     parser.add_argument("--json", action="store_true")
+    parser.add_argument("--metrics-path", type=Path, default=DEFAULT_METRICS_PATH)
     args = parser.parse_args(argv)
     try:
         report = check_gpu_ownership(
@@ -242,6 +279,8 @@ def main(argv: list[str] | None = None) -> int:
     except PolicyError as exc:
         print(json.dumps({"error": str(exc)}, sort_keys=True))
         return 2
+    if report.violations:
+        record_gpu_ownership_violations(len(report.violations), args.metrics_path)
     print(json.dumps(report.as_dict(), sort_keys=True))
     return 3 if report.blocking_pids else 0
 

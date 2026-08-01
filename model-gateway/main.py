@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import logging
 import os
 import shutil
@@ -12,10 +13,12 @@ from typing import Any, Optional
 import httpx
 import yaml
 from dotenv import load_dotenv
-from fastapi import Depends, FastAPI, File, HTTPException, Request, UploadFile
+from fastapi import Depends, FastAPI, File, HTTPException, Request, Response, UploadFile
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
+
+import metrics as gateway_metrics
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SERVICES_ROOT = REPO_ROOT / "services"
@@ -232,6 +235,11 @@ async def validation_error_handler(_: Request, exc: RequestValidationError):
     return JSONResponse(status_code=422, content=payload)
 
 
+@app.get("/metrics")
+def metrics() -> Response:
+    return Response(content=gateway_metrics.render(), media_type=gateway_metrics.METRICS_CONTENT_TYPE)
+
+
 @app.get("/health")
 def health():
     return {
@@ -264,6 +272,26 @@ def models(claims: GatewayClaims = Depends(require_gateway_scope)):
 
 @app.post("/generate")
 async def generate(request: Request, claims: GatewayClaims = Depends(require_gateway_scope)):
+    gateway_metrics.requests_in_flight.inc()
+    try:
+        response = await _generate_impl(request, claims)
+    finally:
+        gateway_metrics.requests_in_flight.dec()
+
+    model_id = "unknown"
+    error_type = None
+    try:
+        body = json.loads(response.body)
+        model_id = str(body.get("model") or body.get("model_id") or body.get("modelId") or "unknown")
+        if response.status_code >= 400:
+            error_type = str((body.get("error") or {}).get("type") or "Unknown")
+    except Exception:  # pragma: no cover -- metrics must never break the response path
+        logger.warning("gateway_metrics_parse_failed request_path=%s", request.url.path)
+    gateway_metrics.record_response(model_id, response.status_code, error_type)
+    return response
+
+
+async def _generate_impl(request: Request, claims: GatewayClaims):
     try:
         raw_body = await request.json()
     except ValueError:

@@ -23,14 +23,17 @@ import os
 from typing import Any
 
 import numpy as np
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Response
 from fastapi.responses import JSONResponse
 from PIL import Image, ImageOps, UnidentifiedImageError
 from pydantic import BaseModel, ConfigDict, Field
 
+from vision_common_metrics import VISION_METRICS_CONTENT_TYPE, build_vision_metrics
+
 logger = logging.getLogger("vision-ocr")
 logging.basicConfig(level=os.environ.get("VISION_OCR_LOG_LEVEL", "info").upper())
 
+MODEL_ID = "pp-ocrv4"
 MAX_IMAGE_PIXELS = 25_000_000
 # Align Pillow's own bomb guard with our limit so a crafted image cannot decode
 # a buffer larger than we would accept.
@@ -93,6 +96,7 @@ class OcrResponse(BaseModel):
 
 
 app = FastAPI(title="vision-ocr", version="1.0.0")
+_metrics = build_vision_metrics("vision-ocr")
 
 
 @app.get("/health")
@@ -104,6 +108,11 @@ def health() -> dict[str, Any]:
     }
 
 
+@app.get("/metrics")
+def metrics() -> Response:
+    return Response(content=_metrics.render(), media_type=VISION_METRICS_CONTENT_TYPE)
+
+
 @app.post("/generate/ocr/paddle", response_model=OcrResponse)
 def ocr(payload: OcrRequest) -> OcrResponse:
     image = _decode_image(payload.image)
@@ -113,11 +122,12 @@ def ocr(payload: OcrRequest) -> OcrResponse:
     # PaddleOCR expects BGR channel order when handed a numpy array (OpenCV
     # convention). PIL decodes RGB, so swap channels or R/B are inverted.
     arr = np.array(image)[:, :, ::-1]  # RGB -> BGR, HxWx3
-    try:
-        raw_results = ocr_engine.ocr(arr, cls=True)
-    except Exception as exc:  # pragma: no cover
-        logger.exception("paddleocr inference failed")
-        raise HTTPException(status_code=500, detail="OCR inference failed") from exc
+    with _metrics.observe_inference(MODEL_ID):
+        try:
+            raw_results = ocr_engine.ocr(arr, cls=True)
+        except Exception as exc:  # pragma: no cover
+            logger.exception("paddleocr inference failed")
+            raise HTTPException(status_code=500, detail="OCR inference failed") from exc
 
     words = _normalize_results(raw_results, image.size)
     return OcrResponse(words=words)

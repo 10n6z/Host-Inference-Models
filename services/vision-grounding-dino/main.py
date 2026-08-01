@@ -30,10 +30,12 @@ import logging
 import os
 from typing import Any
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Response
 from fastapi.responses import JSONResponse
 from PIL import Image, ImageOps, UnidentifiedImageError
 from pydantic import BaseModel, ConfigDict, Field
+
+from vision_common_metrics import VISION_METRICS_CONTENT_TYPE, build_vision_metrics
 
 logger = logging.getLogger("vision-grounding-dino")
 logging.basicConfig(level=os.environ.get("VISION_GROUNDING_DINO_LOG_LEVEL", "info").upper())
@@ -98,6 +100,7 @@ class DetectionResponse(BaseModel):
 
 
 app = FastAPI(title="vision-grounding-dino", version="1.0.0")
+_metrics = build_vision_metrics("vision-grounding-dino")
 
 
 @app.get("/health")
@@ -109,6 +112,11 @@ def health() -> dict[str, Any]:
         "loaded": bool(_model_state),
         "device": _model_state.get("device"),
     }
+
+
+@app.get("/metrics")
+def metrics() -> Response:
+    return Response(content=_metrics.render(), media_type=VISION_METRICS_CONTENT_TYPE)
 
 
 def _build_text_query(payload: DetectRequest) -> str:
@@ -136,24 +144,25 @@ def detect(payload: DetectRequest) -> DetectionResponse:
     model = _model_state["model"]
     device = _model_state["device"]
 
-    try:
-        inputs = processor(images=image, text=text_query, return_tensors="pt").to(device)
-        with torch.inference_mode():
-            outputs = model(**inputs)
+    with _metrics.observe_inference(MODEL_ID):
+        try:
+            inputs = processor(images=image, text=text_query, return_tensors="pt").to(device)
+            with torch.inference_mode():
+                outputs = model(**inputs)
 
-        height, width = image.height, image.width
-        results = processor.post_process_grounded_object_detection(
-            outputs,
-            inputs.input_ids,
-            box_threshold=float(payload.confidence_threshold),
-            text_threshold=float(payload.text_threshold),
-            target_sizes=[(height, width)],
-        )
-    except HTTPException:
-        raise
-    except Exception as exc:  # pragma: no cover
-        logger.exception("grounding dino inference failed")
-        raise HTTPException(status_code=500, detail="detection inference failed") from exc
+            height, width = image.height, image.width
+            results = processor.post_process_grounded_object_detection(
+                outputs,
+                inputs.input_ids,
+                box_threshold=float(payload.confidence_threshold),
+                text_threshold=float(payload.text_threshold),
+                target_sizes=[(height, width)],
+            )
+        except HTTPException:
+            raise
+        except Exception as exc:  # pragma: no cover
+            logger.exception("grounding dino inference failed")
+            raise HTTPException(status_code=500, detail="detection inference failed") from exc
 
     if not results:
         # post_process_grounded_object_detection always returns one entry per

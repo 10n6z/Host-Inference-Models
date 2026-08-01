@@ -1,0 +1,81 @@
+# Computer Vision production alert rules (Prometheus alerting rule format).
+#
+# STATUS (2026-08-01): declarative rules only -- no Prometheus server,
+# node_exporter, or Alertmanager is deployed on gpu-farmi-004 yet (verified:
+# no matching process, systemd unit, or docker container found). These rules
+# are ready to load once that infrastructure exists; deploying it is a
+# separate decision (where it runs, retention, who owns it) not made here.
+#
+# Metric sources once scraped:
+#   - sw4e_gateway_requests_in_flight, sw4e_gateway_requests_total,
+#     sw4e_gateway_provider_errors_total: model-gateway GET /metrics (:9000)
+#   - sw4e_vision_adapter_duration_seconds, sw4e_vision_adapter_requests_total:
+#     each vision-* service's GET /metrics (vision-detection :8121,
+#     vision-yolox :8125, vision-grounding-dino :8124, vision-ocr :8120,
+#     vision-ocr-ensemble :8123)
+#   - sw4e_vision_gpu_ownership_violations_total: textfile-collector counter
+#     written by scripts/check-gpu-ownership.py to
+#     $SW4E_GPU_OWNERSHIP_METRICS_PATH (default
+#     /gpt-lab/long/computer-vision/metrics/gpu_ownership.prom) -- needs a
+#     node_exporter textfile collector pointed at that directory to reach
+#     Prometheus.
+#   - sw4e_vision_stage_duration_seconds, sw4e_vision_retention_*: control-plane
+#     GET /api/computer-vision/metrics (sandbox/control-plane)
+
+groups:
+  - name: computer-vision
+    rules:
+      - alert: ComputerVisionGpuOwnershipViolation
+        expr: increase(sw4e_vision_gpu_ownership_violations_total[5m]) > 0
+        for: 0m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Foreign or unrecognized process found on a Computer Vision GPU"
+          description: >-
+            check-gpu-ownership.py recorded a GPU ownership violation in the
+            last 5 minutes. A process outside the declared gpu-policy.yaml
+            allocation is running on a GPU reserved for planner/OCR/detection.
+
+      - alert: ComputerVisionModelUnavailable
+        expr: |
+          sum by (model_id) (
+            rate(sw4e_gateway_provider_errors_total{error_type=~"ServiceUnavailable|ModelLoadError"}[5m])
+          ) > 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Required Computer Vision model unavailable: {{ $labels.model_id }}"
+          description: >-
+            model-gateway has returned ServiceUnavailable/ModelLoadError for
+            {{ $labels.model_id }} continuously for 2+ minutes. Check the
+            corresponding vision-* container's health and logs.
+
+      - alert: ComputerVisionQueueSaturated
+        expr: sw4e_gateway_requests_in_flight > 20
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "model-gateway has {{ $value }} concurrent /generate requests"
+          description: >-
+            Sustained high concurrency on the gateway's single-process
+            in-flight gauge; requests may be queuing behind slow upstream
+            adapters rather than failing fast.
+
+      - alert: ComputerVisionRepeatedValidationFailures
+        expr: |
+          sum(rate(sw4e_gateway_requests_total{status="error"}[5m]))
+          / clamp_min(sum(rate(sw4e_gateway_requests_total[5m])), 1)
+          > 0.5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Over half of Computer Vision gateway requests are failing"
+          description: >-
+            More than 50% of /generate requests across all models have
+            errored over the last 5 minutes -- consistent with a client
+            sending malformed requests or a systemic upstream failure
+            rather than an isolated model outage.

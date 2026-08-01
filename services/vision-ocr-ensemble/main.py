@@ -23,9 +23,11 @@ import os
 from typing import Any
 
 import httpx
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Response
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field
+
+from vision_common_metrics import VISION_METRICS_CONTENT_TYPE, build_vision_metrics
 
 logger = logging.getLogger("vision-ocr-ensemble")
 logging.basicConfig(level=os.environ.get("VISION_OCR_ENSEMBLE_LOG_LEVEL", "info").upper())
@@ -72,11 +74,17 @@ class OcrResponse(BaseModel):
 
 
 app = FastAPI(title="vision-ocr-ensemble", version="1.0.0")
+_metrics = build_vision_metrics("vision-ocr-ensemble")
 
 
 @app.get("/health")
 def health() -> dict[str, Any]:
     return {"status": "ok", "service": "vision-ocr-ensemble"}
+
+
+@app.get("/metrics")
+def metrics() -> Response:
+    return Response(content=_metrics.render(), media_type=VISION_METRICS_CONTENT_TYPE)
 
 
 def _normalize(text: str) -> str:
@@ -132,23 +140,27 @@ def combine_words(paddle: list[OcrWord], tesseract: list[OcrWord]) -> dict[str, 
     return {"words": [word.model_dump() for word in combined]}
 
 
-async def _call_engine(client: httpx.AsyncClient, url: str, payload: dict[str, Any]) -> list[OcrWord]:
-    try:
-        response = await client.post(url, json=payload, timeout=UPSTREAM_TIMEOUT_SECONDS)
-        response.raise_for_status()
-    except httpx.HTTPError as exc:
-        logger.warning("ensemble upstream call failed url=%s error=%s", url, exc)
-        return []
-    data = response.json()
-    return [OcrWord(**word) for word in data.get("words", [])]
+async def _call_engine(
+    client: httpx.AsyncClient, engine_id: str, url: str, payload: dict[str, Any]
+) -> list[OcrWord]:
+    with _metrics.observe_inference(engine_id) as ctx:
+        try:
+            response = await client.post(url, json=payload, timeout=UPSTREAM_TIMEOUT_SECONDS)
+            response.raise_for_status()
+        except httpx.HTTPError as exc:
+            logger.warning("ensemble upstream call failed url=%s error=%s", url, exc)
+            ctx["status"] = "failed"
+            return []
+        data = response.json()
+        return [OcrWord(**word) for word in data.get("words", [])]
 
 
 @app.post("/generate/ocr/ensemble", response_model=OcrResponse)
 async def ocr(payload: OcrRequest) -> OcrResponse:
     body = {"prompt": payload.prompt, "image": payload.image, "language": payload.language}
     async with httpx.AsyncClient() as client:
-        paddle_words = await _call_engine(client, PADDLE_URL, body)
-        tesseract_words = await _call_engine(client, TESSERACT_URL, body)
+        paddle_words = await _call_engine(client, "pp-ocrv4", PADDLE_URL, body)
+        tesseract_words = await _call_engine(client, "tesseract", TESSERACT_URL, body)
 
     if not paddle_words and not tesseract_words:
         raise HTTPException(status_code=502, detail="Both OCR engines were unavailable")

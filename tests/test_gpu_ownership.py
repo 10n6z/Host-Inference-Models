@@ -130,6 +130,53 @@ def test_launcher_and_routes_pin_each_modality():
     assert 'gpu_uuid_env="VIDEO_GPU_UUID" if os.getenv("VIDEO_GPU_UUID") else None' in (ROOT / "servers/routes/video.py").read_text(encoding="utf-8")
 
 
+def test_record_gpu_ownership_violations_creates_counter_file(tmp_path: Path):
+    metrics_path = tmp_path / "gpu_ownership.prom"
+    total = gpu_ownership.record_gpu_ownership_violations(2, metrics_path)
+    assert total == 2
+    body = metrics_path.read_text(encoding="utf-8")
+    assert "sw4e_vision_gpu_ownership_violations_total 2" in body
+
+
+def test_record_gpu_ownership_violations_accumulates(tmp_path: Path):
+    metrics_path = tmp_path / "gpu_ownership.prom"
+    gpu_ownership.record_gpu_ownership_violations(2, metrics_path)
+    total = gpu_ownership.record_gpu_ownership_violations(3, metrics_path)
+    assert total == 5
+    body = metrics_path.read_text(encoding="utf-8")
+    assert "sw4e_vision_gpu_ownership_violations_total 5" in body
+
+
+def test_checker_main_writes_violation_counter_on_blocking_process(monkeypatch, capsys, tmp_path: Path):
+    monkeypatch.setattr(
+        gpu_ownership,
+        "read_nvidia_processes",
+        lambda: [gpu_ownership.GpuProcess(GPU_1_UUID, 702, "rogue-worker", 1)],
+    )
+    monkeypatch.setattr(gpu_ownership, "read_visible_gpu_uuids", lambda: [GPU_1_UUID])
+    metrics_path = tmp_path / "gpu_ownership.prom"
+    exit_code = gpu_ownership.main(
+        ["--policy", str(ROOT / "config/gpu-policy.yaml"), "--json", "--metrics-path", str(metrics_path)]
+    )
+    assert exit_code == 3
+    assert "sw4e_vision_gpu_ownership_violations_total 1" in metrics_path.read_text(encoding="utf-8")
+
+
+def test_checker_main_does_not_write_counter_when_clean(monkeypatch, capsys, tmp_path: Path):
+    monkeypatch.setattr(
+        gpu_ownership,
+        "read_nvidia_processes",
+        lambda: [gpu_ownership.GpuProcess(GPU_1_UUID, 501, "vision-planner", 8192)],
+    )
+    monkeypatch.setattr(gpu_ownership, "read_visible_gpu_uuids", lambda: [GPU_1_UUID])
+    metrics_path = tmp_path / "gpu_ownership.prom"
+    exit_code = gpu_ownership.main(
+        ["--policy", str(ROOT / "config/gpu-policy.yaml"), "--json", "--metrics-path", str(metrics_path)]
+    )
+    assert exit_code == 0
+    assert not metrics_path.exists()
+
+
 def test_compose_wires_fail_closed_preflight_for_vision_services():
     compose = yaml.safe_load((ROOT / "docker-compose.yml").read_text(encoding="utf-8"))
     for service_name, port in (("vision-ocr", "8120"), ("vision-detection", "8121")):

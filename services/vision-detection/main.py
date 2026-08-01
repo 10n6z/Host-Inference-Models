@@ -23,10 +23,12 @@ import logging
 import os
 from typing import Any
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Response
 from fastapi.responses import JSONResponse
 from PIL import Image, ImageOps, UnidentifiedImageError
 from pydantic import BaseModel, ConfigDict, Field
+
+from vision_common_metrics import VISION_METRICS_CONTENT_TYPE, build_vision_metrics
 
 logger = logging.getLogger("vision-detection")
 logging.basicConfig(level=os.environ.get("VISION_DETECTION_LOG_LEVEL", "info").upper())
@@ -87,6 +89,7 @@ class DetectionResponse(BaseModel):
 
 
 app = FastAPI(title="vision-detection", version="1.0.0")
+_metrics = build_vision_metrics("vision-detection")
 
 
 @app.get("/health")
@@ -100,6 +103,11 @@ def health() -> dict[str, Any]:
     }
 
 
+@app.get("/metrics")
+def metrics() -> Response:
+    return Response(content=_metrics.render(), media_type=VISION_METRICS_CONTENT_TYPE)
+
+
 @app.post("/generate/detect/rtdetr", response_model=DetectionResponse)
 def detect(payload: DetectRequest) -> DetectionResponse:
     image = _decode_image(payload.image)
@@ -109,21 +117,22 @@ def detect(payload: DetectRequest) -> DetectionResponse:
     model = _model_state["model"]
     device = _model_state["device"]
 
-    try:
-        inputs = processor(images=image, return_tensors="pt").to(device)
-        with torch.inference_mode():
-            outputs = model(**inputs)
+    with _metrics.observe_inference(MODEL_ID):
+        try:
+            inputs = processor(images=image, return_tensors="pt").to(device)
+            with torch.inference_mode():
+                outputs = model(**inputs)
 
-        height, width = image.height, image.width
-        target_sizes = torch.tensor([(height, width)], device=device)
-        results = processor.post_process_object_detection(
-            outputs,
-            target_sizes=target_sizes,
-            threshold=float(payload.confidence_threshold),
-        )
-    except Exception as exc:  # pragma: no cover
-        logger.exception("rtdetr inference failed")
-        raise HTTPException(status_code=500, detail="detection inference failed") from exc
+            height, width = image.height, image.width
+            target_sizes = torch.tensor([(height, width)], device=device)
+            results = processor.post_process_object_detection(
+                outputs,
+                target_sizes=target_sizes,
+                threshold=float(payload.confidence_threshold),
+            )
+        except Exception as exc:  # pragma: no cover
+            logger.exception("rtdetr inference failed")
+            raise HTTPException(status_code=500, detail="detection inference failed") from exc
 
     if not results:
         # post_process_object_detection always returns one entry per image; an

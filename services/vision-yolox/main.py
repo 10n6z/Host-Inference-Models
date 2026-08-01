@@ -26,10 +26,12 @@ import os
 from typing import Any
 
 import numpy as np
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Response
 from fastapi.responses import JSONResponse
 from PIL import Image, ImageOps, UnidentifiedImageError
 from pydantic import BaseModel, ConfigDict, Field
+
+from vision_common_metrics import VISION_METRICS_CONTENT_TYPE, build_vision_metrics
 
 logger = logging.getLogger("vision-yolox")
 logging.basicConfig(level=os.environ.get("VISION_YOLOX_LOG_LEVEL", "info").upper())
@@ -115,6 +117,7 @@ class DetectionResponse(BaseModel):
 
 
 app = FastAPI(title="vision-yolox", version="1.0.0")
+_metrics = build_vision_metrics("vision-yolox")
 
 
 @app.get("/health")
@@ -126,6 +129,11 @@ def health() -> dict[str, Any]:
         "loaded": bool(_model_state),
         "device": _model_state.get("device"),
     }
+
+
+@app.get("/metrics")
+def metrics() -> Response:
+    return Response(content=_metrics.render(), media_type=VISION_METRICS_CONTENT_TYPE)
 
 
 def _letterbox_bgr(image: Image.Image, input_size: tuple[int, int]) -> tuple[np.ndarray, float]:
@@ -157,23 +165,24 @@ def detect(payload: DetectRequest) -> DetectionResponse:
     width, height = image.width, image.height
     tensor_input, ratio = _letterbox_bgr(image, INPUT_SIZE)
 
-    try:
-        batch = torch.from_numpy(tensor_input).unsqueeze(0).to(device)
-        with torch.inference_mode():
-            raw_output = model(batch)
-            # postprocess() mutates its input tensor in place (upstream
-            # yolox.utils.boxes.postprocess); torch forbids that on an
-            # inference-mode tensor once outside the inference_mode context,
-            # so this call must stay inside the same block as the forward pass.
-            results = postprocess(
-                raw_output,
-                len(COCO_CLASSES),
-                conf_thre=float(payload.confidence_threshold),
-                nms_thre=NMS_THRESHOLD,
-            )
-    except Exception as exc:  # pragma: no cover
-        logger.exception("yolox inference failed")
-        raise HTTPException(status_code=500, detail="detection inference failed") from exc
+    with _metrics.observe_inference(MODEL_NAME):
+        try:
+            batch = torch.from_numpy(tensor_input).unsqueeze(0).to(device)
+            with torch.inference_mode():
+                raw_output = model(batch)
+                # postprocess() mutates its input tensor in place (upstream
+                # yolox.utils.boxes.postprocess); torch forbids that on an
+                # inference-mode tensor once outside the inference_mode context,
+                # so this call must stay inside the same block as the forward pass.
+                results = postprocess(
+                    raw_output,
+                    len(COCO_CLASSES),
+                    conf_thre=float(payload.confidence_threshold),
+                    nms_thre=NMS_THRESHOLD,
+                )
+        except Exception as exc:  # pragma: no cover
+            logger.exception("yolox inference failed")
+            raise HTTPException(status_code=500, detail="detection inference failed") from exc
 
     detections: list[Detection] = []
     result = results[0] if results else None

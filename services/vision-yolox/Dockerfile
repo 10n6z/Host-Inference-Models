@@ -33,6 +33,7 @@ RUN pip install --no-cache-dir -r /app/requirements.txt
 # pre-compile optional training-only ops, which we don't need either).
 RUN pip install --no-cache-dir --no-deps --no-build-isolation "yolox==0.3.0"
 
+COPY services/vision-common/metrics.py /app/vision_common_metrics.py
 COPY services/vision-yolox/main.py /app/main.py
 
 ENV HF_HOME=/gpt-lab/long/models/hf \
