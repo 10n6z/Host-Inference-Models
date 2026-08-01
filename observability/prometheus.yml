@@ -1,0 +1,46 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+rule_files:
+  - /etc/prometheus/computer-vision-alerts.yaml
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ["alertmanager:9093"]
+
+scrape_configs:
+  - job_name: model-gateway
+    static_configs:
+      - targets: ["model-gateway:9000"]
+
+  - job_name: vision-detection
+    static_configs:
+      - targets: ["vision-detection:8121"]
+
+  - job_name: vision-yolox
+    static_configs:
+      - targets: ["vision-yolox:8125"]
+
+  - job_name: vision-grounding-dino
+    static_configs:
+      - targets: ["vision-grounding-dino:8124"]
+
+  - job_name: vision-ocr
+    static_configs:
+      - targets: ["vision-ocr:8120"]
+
+  - job_name: vision-ocr-ensemble
+    static_configs:
+      - targets: ["vision-ocr-ensemble:8123"]
+
+  - job_name: commercial-planner
+    static_configs:
+      - targets: ["commercial-planner:8127"]
+
+  - job_name: node-exporter
+    # sw4e_vision_gpu_ownership_violations_total arrives via node_exporter's
+    # textfile collector, not a service-native /metrics endpoint.
+    static_configs:
+      - targets: ["node-exporter:9100"]

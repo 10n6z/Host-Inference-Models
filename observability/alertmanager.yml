@@ -1,0 +1,11 @@
+# No real notification channel (Slack webhook, PagerDuty key, email relay)
+# is configured for this host -- wiring one up needs real credentials this
+# session doesn't have. The `null` receiver here means alerts are evaluated
+# and visible in Alertmanager's own UI/API, but nothing is paged. Replace
+# this receiver with a real one before relying on this for production
+# on-call.
+route:
+  receiver: "null"
+
+receivers:
+  - name: "null"
