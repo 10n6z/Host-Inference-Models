@@ -39,6 +39,10 @@ scrape_configs:
     static_configs:
       - targets: ["commercial-planner:8127"]
 
+  - job_name: document-rasterizer
+    static_configs:
+      - targets: ["document-rasterizer:8130"]
+
   - job_name: node-exporter
     # sw4e_vision_gpu_ownership_violations_total arrives via node_exporter's
     # textfile collector, not a service-native /metrics endpoint.

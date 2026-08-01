@@ -31,8 +31,17 @@ services:
       # Override when Ollama runs outside compose (e.g. host systemd):
       # OLLAMA_BASE_URL=http://host.docker.internal:11434
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://ollama:11434}
+      DOCUMENT_RASTERIZER_URL: http://document-rasterizer:8130
     volumes:
       - ${OUTPUTS_HOST_DIR:-./outputs}:/outputs
+      # Shared with document-rasterizer -- assets.py writes here, the
+      # rasterizer reads the same tenant-scoped layout back. Without this
+      # bind mount each container only sees its own ephemeral writable
+      # layer and the two services can never actually see each other's
+      # files (real gap found and fixed 2026-08-01: this mount never
+      # existed, so uploaded assets weren't durable across restarts
+      # either).
+      - /gpt-lab/long/computer-vision/assets:/gpt-lab/long/computer-vision/assets
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
@@ -51,6 +60,7 @@ services:
       - audio-cosyvoice
       - vision-ocr
       - vision-detection
+      - document-rasterizer
     networks:
       - model-server
 
@@ -371,6 +381,19 @@ services:
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
       OPENROUTER_PLANNER_MODEL: ${OPENROUTER_PLANNER_MODEL:-}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    networks:
+      - model-server
+
+  document-rasterizer:
+    build:
+      context: .
+      dockerfile: services/document-rasterizer/Dockerfile
+    expose:
+      - "8130"
+    environment:
+      GATEWAY_ASSETS_ROOT: /gpt-lab/long/computer-vision/assets
+    volumes:
+      - /gpt-lab/long/computer-vision/assets:/gpt-lab/long/computer-vision/assets
     networks:
       - model-server
 

@@ -12,11 +12,12 @@ import logging
 import os
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Response
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from rasterizer import PageError, RasterizedPage, RasterizerError, rasterize_pdf, rasterize_tiff
+from vision_common_metrics import VISION_METRICS_CONTENT_TYPE, build_vision_metrics
 
 logger = logging.getLogger("document-rasterizer")
 logging.basicConfig(level=os.environ.get("DOCUMENT_RASTERIZER_LOG_LEVEL", "info").upper())
@@ -24,6 +25,7 @@ logging.basicConfig(level=os.environ.get("DOCUMENT_RASTERIZER_LOG_LEVEL", "info"
 ASSETS_ROOT = Path(os.environ.get("GATEWAY_ASSETS_ROOT", "/gpt-lab/long/computer-vision/assets"))
 
 app = FastAPI(title="document-rasterizer", version="1.0.0")
+_metrics = build_vision_metrics("document-rasterizer")
 
 RASTERIZERS = {
     "application/pdf": rasterize_pdf,
@@ -57,6 +59,11 @@ def health() -> dict:
     return {"status": "ok", "service": "document-rasterizer"}
 
 
+@app.get("/metrics")
+def metrics() -> Response:
+    return Response(content=_metrics.render(), media_type=VISION_METRICS_CONTENT_TYPE)
+
+
 def _resolve_asset_path(tenant_id: str, asset_id: str) -> Path:
     # tenant_id/asset_id come from the authenticated gateway request, never
     # straight from client input, but a defense-in-depth boundary check
@@ -85,10 +92,11 @@ def rasterize(request: RasterizeRequest) -> RasterizeResponse:
     output_dir = asset_path.parent / f"{request.asset_id}-pages"
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    try:
-        results = list(rasterizer(asset_path))
-    except RasterizerError as exc:
-        raise HTTPException(status_code=422, detail={"code": exc.code, "message": str(exc)}) from exc
+    with _metrics.observe_inference(request.mime_type):
+        try:
+            results = list(rasterizer(asset_path))
+        except RasterizerError as exc:
+            raise HTTPException(status_code=422, detail={"code": exc.code, "message": str(exc)}) from exc
 
     pages: list[PageStatus] = []
     for result in results:
