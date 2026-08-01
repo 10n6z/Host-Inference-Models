@@ -12,9 +12,9 @@ from typing import Any, Optional
 import httpx
 import yaml
 from dotenv import load_dotenv
-from fastapi import Depends, FastAPI, File, Request, UploadFile
+from fastapi import Depends, FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -25,7 +25,7 @@ if str(SERVICES_ROOT) not in sys.path:
 from common.responses import build_failed_response, build_success_response, utc_now_iso
 from adapters import ollama, vllm
 from auth import GatewayAuthError, GatewayClaims, require_gateway_scope, require_model_scope
-from assets import AssetTooLargeError, save_tenant_asset
+from assets import ASSETS_ROOT, AssetTooLargeError, save_tenant_asset
 from tenant_store import (
     TenantGatewayJob,
     get_asset as get_tenant_asset,
@@ -628,3 +628,59 @@ def get_asset_metadata(
         "byte_length": asset.byte_length,
         "sha256": asset.sha256,
     }
+
+
+DOCUMENT_RASTERIZER_URL = os.getenv("DOCUMENT_RASTERIZER_URL", "http://document-rasterizer:8130")
+
+
+def _resolve_page_path(tenant_id: str, asset_id: str, page_index: int) -> Path:
+    tenant_dir = (ASSETS_ROOT / tenant_id).resolve()
+    if not str(tenant_dir).startswith(str(ASSETS_ROOT.resolve())):
+        raise HTTPException(status_code=400, detail={"code": "INVALID_TENANT", "message": "Invalid tenant id"})
+    page_path = (tenant_dir / f"{asset_id}-pages" / f"{page_index}.png").resolve()
+    if not str(page_path).startswith(str(tenant_dir)):
+        raise HTTPException(status_code=400, detail={"code": "INVALID_ASSET_ID", "message": "Invalid asset id"})
+    if not page_path.is_file():
+        raise HTTPException(status_code=404, detail={"code": "PAGE_NOT_FOUND", "message": "Page not found"})
+    return page_path
+
+
+@app.post("/documents/{asset_id}/rasterize")
+async def rasterize_document(
+    asset_id: str,
+    body: dict,
+    claims: GatewayClaims = Depends(require_gateway_scope),
+):
+    mime_type = body.get("mime_type")
+    if not isinstance(mime_type, str) or not mime_type:
+        raise HTTPException(status_code=422, detail={"code": "INVALID_INPUT", "message": "mime_type is required"})
+    async with httpx.AsyncClient(timeout=GATEWAY_TIMEOUT_SECONDS, trust_env=False) as client:
+        upstream = await client.post(
+            f"{DOCUMENT_RASTERIZER_URL}/rasterize",
+            json={"tenant_id": claims.tenant_id, "asset_id": asset_id, "mime_type": mime_type},
+        )
+    if upstream.status_code != 200:
+        raise HTTPException(status_code=upstream.status_code, detail=upstream.json())
+    upstream_body = upstream.json()
+    pages = [
+        {
+            "page_index": page["page_index"],
+            "status": page["status"],
+            "width": page.get("width"),
+            "height": page.get("height"),
+            "error_code": page.get("error_code"),
+            "error_message": page.get("error_message"),
+        }
+        for page in upstream_body["pages"]
+    ]
+    return {"status": upstream_body["status"], "pages": pages}
+
+
+@app.get("/documents/{asset_id}/pages/{page_index}")
+def get_document_page(
+    asset_id: str,
+    page_index: int,
+    claims: GatewayClaims = Depends(require_gateway_scope),
+):
+    page_path = _resolve_page_path(claims.tenant_id, asset_id, page_index)
+    return FileResponse(page_path, media_type="image/png")
