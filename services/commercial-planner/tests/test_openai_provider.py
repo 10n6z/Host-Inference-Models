@@ -35,9 +35,26 @@ class _FakeResponses:
         return self._response
 
 
+class _FakeCompletions:
+    def __init__(self, response=None, error=None):
+        self._response = response
+        self._error = error
+
+    def create(self, **kwargs):
+        if self._error:
+            raise self._error
+        return self._response
+
+
+class _FakeChat:
+    def __init__(self, response=None, error=None):
+        self.completions = _FakeCompletions(response, error)
+
+
 class _FakeClient:
     def __init__(self, response=None, error=None):
         self.responses = _FakeResponses(response, error)
+        self.chat = _FakeChat(response, error)
 
 
 VALID_PLAN = {
@@ -116,3 +133,80 @@ def test_api_timeout_raises_provider_timeout(monkeypatch, metadata):
     with pytest.raises(PlannerError) as exc_info:
         openai_provider.plan_with_openai(metadata)
     assert exc_info.value.code == "PROVIDER_TIMEOUT"
+
+
+def _chat_response(content=None, finish_reason="stop"):
+    return SimpleNamespace(
+        choices=[
+            SimpleNamespace(
+                finish_reason=finish_reason,
+                message=SimpleNamespace(content=content),
+            )
+        ]
+    )
+
+
+def test_openrouter_path_parses_a_successful_plan(monkeypatch, metadata):
+    monkeypatch.setattr(openai_provider, "OPENROUTER_API_KEY", "sk-or-test")
+    monkeypatch.setattr(
+        openai_provider,
+        "_client",
+        _FakeClient(_chat_response(content=json.dumps(VALID_PLAN))),
+    )
+
+    plan = openai_provider.plan_with_openai(metadata)
+
+    assert plan.source == "openai"
+    assert plan.tasks == ["ocr", "report"]
+
+
+def test_openrouter_path_treats_content_filter_as_refusal(monkeypatch, metadata):
+    monkeypatch.setattr(openai_provider, "OPENROUTER_API_KEY", "sk-or-test")
+    monkeypatch.setattr(
+        openai_provider,
+        "_client",
+        _FakeClient(_chat_response(content=None, finish_reason="content_filter")),
+    )
+
+    with pytest.raises(PlannerError) as exc_info:
+        openai_provider.plan_with_openai(metadata)
+    assert exc_info.value.code == "REFUSAL"
+
+
+def test_openrouter_path_treats_length_finish_as_truncated(monkeypatch, metadata):
+    monkeypatch.setattr(openai_provider, "OPENROUTER_API_KEY", "sk-or-test")
+    monkeypatch.setattr(
+        openai_provider,
+        "_client",
+        _FakeClient(_chat_response(content=None, finish_reason="length")),
+    )
+
+    with pytest.raises(PlannerError) as exc_info:
+        openai_provider.plan_with_openai(metadata)
+    assert exc_info.value.code == "TRUNCATED"
+
+
+def test_openrouter_path_rejects_non_json_output(monkeypatch, metadata):
+    monkeypatch.setattr(openai_provider, "OPENROUTER_API_KEY", "sk-or-test")
+    monkeypatch.setattr(
+        openai_provider,
+        "_client",
+        _FakeClient(_chat_response(content="not json")),
+    )
+
+    with pytest.raises(PlannerError) as exc_info:
+        openai_provider.plan_with_openai(metadata)
+    assert exc_info.value.code == "SCHEMA_INVALID"
+
+
+def test_openrouter_path_rejects_schema_violating_json(monkeypatch, metadata):
+    monkeypatch.setattr(openai_provider, "OPENROUTER_API_KEY", "sk-or-test")
+    monkeypatch.setattr(
+        openai_provider,
+        "_client",
+        _FakeClient(_chat_response(content=json.dumps({"domain": "not_a_real_domain"}))),
+    )
+
+    with pytest.raises(PlannerError) as exc_info:
+        openai_provider.plan_with_openai(metadata)
+    assert exc_info.value.code == "SCHEMA_INVALID"

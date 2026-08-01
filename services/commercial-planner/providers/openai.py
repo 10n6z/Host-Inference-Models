@@ -3,6 +3,15 @@
 Uses the official `openai` SDK with strict JSON Schema output so the
 response is schema-valid VisionPlan JSON. Treats refusal, incomplete
 output, and schema mismatch as typed failures.
+
+If OPENROUTER_API_KEY is set, routes through OpenRouter's Chat Completions
+endpoint instead -- OpenRouter has no Responses API, so this is a genuinely
+different call shape, not just a different base_url. Used for staging/test
+tenants that need a free-tier external-provider path (Task 18 Step 6);
+`source` on the returned plan stays "openai" since the tenant still selects
+the "openai" PlannerProvider -- OpenRouter is a deployment substitution
+behind that choice, the same pattern as the Ministral -> Mistral-7B
+substitution in Phase 2.
 """
 
 from __future__ import annotations
@@ -25,18 +34,39 @@ VISION_PLAN_RESPONSE_FORMAT = {
     "strict": True,
 }
 
+OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY")
+OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
+OPENROUTER_MODEL = os.environ.get(
+    "OPENROUTER_PLANNER_MODEL", "meta-llama/llama-3.1-8b-instruct:free"
+)
+OPENROUTER_SYSTEM_PROMPT = (
+    "You are a Computer Vision job planner. Given compact task metadata, "
+    "respond with ONLY a single JSON object matching this exact schema -- "
+    "no prose, no markdown code fences, no extra keys: "
+    + json.dumps(VISION_PLAN_JSON_SCHEMA)
+)
+
 _client: openai.OpenAI | None = None
 
 
 def _get_client() -> openai.OpenAI:
     global _client
     if _client is None:
-        _client = openai.OpenAI()
+        if OPENROUTER_API_KEY:
+            _client = openai.OpenAI(api_key=OPENROUTER_API_KEY, base_url=OPENROUTER_BASE_URL)
+        else:
+            _client = openai.OpenAI()
     return _client
 
 
 def plan_with_openai(metadata: PlanningMetadata) -> VisionPlan:
     client = _get_client()
+    if OPENROUTER_API_KEY:
+        return _plan_via_chat_completions(client, metadata)
+    return _plan_via_responses_api(client, metadata)
+
+
+def _plan_via_responses_api(client: openai.OpenAI, metadata: PlanningMetadata) -> VisionPlan:
     try:
         response = client.responses.create(
             model=DEFAULT_MODEL,
@@ -56,6 +86,50 @@ def plan_with_openai(metadata: PlanningMetadata) -> VisionPlan:
         raise PlannerError("TRUNCATED", f"OpenAI planner output was incomplete ({reason})")
 
     output_text = getattr(response, "output_text", None)
+    if not output_text:
+        raise PlannerError("SCHEMA_INVALID", "No structured output in response")
+
+    try:
+        raw = json.loads(output_text)
+    except (ValueError, TypeError) as exc:
+        raise PlannerError("SCHEMA_INVALID", "Response was not valid JSON") from exc
+
+    plan = parse_vision_plan(raw)
+    return plan.model_copy(update={"source": "openai"})
+
+
+def _plan_via_chat_completions(client: openai.OpenAI, metadata: PlanningMetadata) -> VisionPlan:
+    # OpenRouter (and Chat Completions generally) has no native "strict JSON
+    # Schema" mode as uniformly as the Responses API -- response_format is
+    # loosened to json_object and parse_vision_plan() below does the actual
+    # schema enforcement, same typed-failure contract either way.
+    try:
+        response = client.chat.completions.create(
+            model=OPENROUTER_MODEL,
+            messages=[
+                {"role": "system", "content": OPENROUTER_SYSTEM_PROMPT},
+                {"role": "user", "content": metadata.model_dump_json()},
+            ],
+            response_format={"type": "json_object"},
+            timeout=30,
+        )
+    except openai.APITimeoutError as exc:
+        raise PlannerError("PROVIDER_TIMEOUT", str(exc)) from exc
+    except openai.APIStatusError as exc:
+        raise PlannerError("PROVIDER_UNAVAILABLE", str(exc)) from exc
+
+    choices = getattr(response, "choices", None) or []
+    if not choices:
+        raise PlannerError("SCHEMA_INVALID", "No choices in response")
+    choice = choices[0]
+
+    finish_reason = getattr(choice, "finish_reason", None)
+    if finish_reason == "content_filter":
+        raise PlannerError("REFUSAL", "OpenRouter planner declined the request")
+    if finish_reason == "length":
+        raise PlannerError("TRUNCATED", "OpenRouter planner output was truncated")
+
+    output_text = getattr(getattr(choice, "message", None), "content", None)
     if not output_text:
         raise PlannerError("SCHEMA_INVALID", "No structured output in response")
 
