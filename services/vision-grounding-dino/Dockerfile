@@ -30,7 +30,7 @@ COPY services/vision-grounding-dino/main.py /app/main.py
 ENV HF_HOME=/gpt-lab/long/models/hf \
     TRANSFORMERS_CACHE=/gpt-lab/long/models/hf \
     VISION_GROUNDING_DINO_LOG_LEVEL=info \
-    VISION_GROUNDING_DINO_MODEL_ID=IDEA-Research/grounding-dino-tiny
+    VISION_GROUNDING_DINO_MODEL_ID=google/owlv2-base-patch16-ensemble
 
 EXPOSE 8124
 

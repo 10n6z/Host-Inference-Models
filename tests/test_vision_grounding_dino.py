@@ -42,19 +42,17 @@ class _FakeTensor(list):
 class _FakeProcessor:
     def __init__(self, result):
         self._result = result
-        self.seen_text = None
+        self.seen_labels = None
 
-    def __call__(self, images, text, return_tensors):
-        self.seen_text = text
+    def __call__(self, text, images, return_tensors):
+        self.seen_labels = text[0]
         return _FakeBatch()
 
-    def post_process_grounded_object_detection(self, outputs, input_ids, box_threshold, text_threshold, target_sizes):
+    def post_process_object_detection(self, outputs, target_sizes, threshold):
         return [self._result]
 
 
 class _FakeBatch:
-    input_ids = "fake-ids"
-
     def to(self, device):
         return self
 
@@ -87,16 +85,15 @@ def _install_fake_model(service_module, monkeypatch, result):
 
             return contextlib.nullcontext()
 
+        @staticmethod
+        def tensor(value):
+            return value
+
         class cuda:
             @staticmethod
             def is_available():
                 return False
 
-    monkeypatch.setitem(
-        service_module._model_state,
-        "processor",
-        fake_processor,
-    )
     service_module._model_state.update(
         {
             "processor": fake_processor,
@@ -131,11 +128,11 @@ def test_detect_requires_labels_or_prompt(client):
     assert "labels or prompt" in response.json()["message"]
 
 
-def test_detect_builds_lowercased_period_separated_query_from_labels(client, service_module, monkeypatch):
+def test_detect_builds_lowercased_label_list_from_labels(client, service_module, monkeypatch):
     fake_processor = _install_fake_model(
         service_module,
         monkeypatch,
-        {"scores": _FakeTensor([0.81]), "labels": ["forklift"], "boxes": _FakeTensor([[10.0, 10.0, 60.0, 40.0]])},
+        {"scores": _FakeTensor([0.81]), "labels": _FakeTensor([0]), "boxes": _FakeTensor([[10.0, 10.0, 60.0, 40.0]])},
     )
 
     response = client.post(
@@ -144,7 +141,7 @@ def test_detect_builds_lowercased_period_separated_query_from_labels(client, ser
     )
 
     assert response.status_code == 200
-    assert fake_processor.seen_text == "forklift. ladder."
+    assert fake_processor.seen_labels == ["forklift", "ladder"]
 
 
 def test_detect_returns_normalized_detections(client, service_module, monkeypatch):
@@ -153,7 +150,7 @@ def test_detect_returns_normalized_detections(client, service_module, monkeypatc
         monkeypatch,
         {
             "scores": _FakeTensor([0.9]),
-            "labels": ["a forklift"],
+            "labels": _FakeTensor([0]),
             "boxes": _FakeTensor([[10.0, 10.0, 60.0, 40.0]]),
         },
     )
@@ -180,7 +177,7 @@ def test_detect_drops_zero_area_boxes(client, service_module, monkeypatch):
         monkeypatch,
         {
             "scores": _FakeTensor([0.9]),
-            "labels": ["forklift"],
+            "labels": _FakeTensor([0]),
             "boxes": _FakeTensor([[10.0, 10.0, 10.0, 40.0]]),
         },
     )

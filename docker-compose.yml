@@ -32,6 +32,7 @@ services:
       # OLLAMA_BASE_URL=http://host.docker.internal:11434
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://ollama:11434}
       DOCUMENT_RASTERIZER_URL: http://document-rasterizer:8130
+      MODEL_GATEWAY_JWT_SECRET: ${MODEL_GATEWAY_JWT_SECRET:-}
     volumes:
       - ${OUTPUTS_HOST_DIR:-./outputs}:/outputs
       # Shared with document-rasterizer -- assets.py writes here, the

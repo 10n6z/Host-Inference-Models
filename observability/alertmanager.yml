@@ -1,11 +1,17 @@
-# No real notification channel (Slack webhook, PagerDuty key, email relay)
-# is configured for this host -- wiring one up needs real credentials this
-# session doesn't have. The `null` receiver here means alerts are evaluated
-# and visible in Alertmanager's own UI/API, but nothing is paged. Replace
-# this receiver with a real one before relying on this for production
-# on-call.
+# Real notification channel: ntfy.sh (public instance, no account/credential
+# needed -- the unguessable topic name is the access control). Uses the
+# generic webhook receiver posting straight to the topic URL. (Tried ntfy's
+# documented Slack-webhook-compatible endpoint, /<topic>/slack, to get
+# templated title/text via Alertmanager's slack_configs -- live-tested with
+# curl and it does not parse the Slack JSON on this ntfy.sh instance, it just
+# echoes the raw body as the message. Fell back to the plain webhook: alerts
+# arrive as Alertmanager's default JSON payload, less readable but a real,
+# verified, working push notification with zero credentials.)
 route:
-  receiver: "null"
+  receiver: "ntfy"
 
 receivers:
-  - name: "null"
+  - name: "ntfy"
+    webhook_configs:
+      - url: https://ntfy.sh/sw4e-cv-alerts-b9e25daa84d3
+        send_resolved: true

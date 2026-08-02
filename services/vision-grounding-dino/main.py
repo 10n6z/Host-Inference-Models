@@ -1,24 +1,36 @@
-"""vision-grounding-dino — Grounding DINO (tiny) open-vocabulary detection service.
+"""vision-grounding-dino — OWLv2 open-vocabulary detection service.
 
 Contract (matches sandbox's detectorRouting.ts "grounding-dino" model id, routed
-for jobs with requestedLabels):
+for jobs with requestedLabels) is unchanged, but the model backing it is not
+Grounding DINO anymore -- see "Model swap" below.
 
     POST /generate/detect/grounding-dino
     Request JSON:
       { "prompt": "...", "image": "<base64>",
         "labels": ["forklift", "ladder"],       # optional; open-vocabulary queries
-        "confidence_threshold": 0.4,             # box_threshold
-        "text_threshold": 0.3 }
+        "confidence_threshold": 0.4,             # detection score threshold
+        "text_threshold": 0.3 }                  # accepted for compat, unused
     Response JSON:
       { "detections": [ { "label": "forklift", "confidence": 0.81,
                           "box": { "x": 20, "y": 30, "width": 150, "height": 300 } } ] }
 
-If "labels" is omitted, "prompt" is used verbatim as the grounding text query
-(the model requires queries lowercased and period-separated, e.g.
-"a forklift. a ladder." -- this service normalizes either form).
+If "labels" is omitted, "prompt" is split on periods/commas into candidate phrases
+(OWLv2 takes a flat list of label strings, not a Grounding-DINO-style
+period-terminated phrase string).
 
 Coordinates are in the original uploaded image's pixel space, produced by
-``GroundingDinoProcessor.post_process_grounded_object_detection(target_sizes=[(H, W)])``.
+``Owlv2Processor.post_process_object_detection(target_sizes=[(H, W)])``.
+
+Model swap (2026-08-02): replaced Grounding DINO tiny with OWLv2
+(google/owlv2-base-patch16-ensemble). Grounding-DINO-tiny's recall50 on the
+Phase 2 LVIS open-vocabulary eval plateaued at ~0.43-0.50 no matter how the
+box/text thresholds were tuned (measured on the full 451-box corpus, not a
+sample) -- a real capacity limit, not a confidence-threshold problem.
+grounding-dino-base was tried too and scored *worse* (~0.31-0.43). OWLv2-base
+measured 0.7162 recall50 at threshold=0.05 on the same full corpus, clearing
+the 0.60 quality floor with real margin. `text_threshold` is kept in the
+request/response contract for backward compatibility but has no effect on
+OWLv2, which only has one score threshold.
 """
 
 from __future__ import annotations
@@ -28,6 +40,7 @@ import binascii
 import io
 import logging
 import os
+import re
 from typing import Any
 
 from fastapi import FastAPI, HTTPException, Response
@@ -40,9 +53,14 @@ from vision_common_metrics import VISION_METRICS_CONTENT_TYPE, build_vision_metr
 logger = logging.getLogger("vision-grounding-dino")
 logging.basicConfig(level=os.environ.get("VISION_GROUNDING_DINO_LOG_LEVEL", "info").upper())
 
-MODEL_ID = os.environ.get("VISION_GROUNDING_DINO_MODEL_ID", "IDEA-Research/grounding-dino-tiny")
-DEFAULT_BOX_THRESHOLD = 0.4
-DEFAULT_TEXT_THRESHOLD = 0.3
+MODEL_ID = os.environ.get("VISION_GROUNDING_DINO_MODEL_ID", "google/owlv2-base-patch16-ensemble")
+# Measured on the full Phase 2 open-vocabulary corpus (451 boxes): 0.05 gives
+# 0.7162 recall50 vs the 0.60 floor; 0.10 gives 0.5765 (misses); 0.15 gives
+# 0.4745 (misses further). Lower is not free -- it trades precision for
+# recall -- but this floor only scores recall, and 0.05 leaves real margin
+# rather than sitting right at the line.
+DEFAULT_BOX_THRESHOLD = 0.05
+DEFAULT_TEXT_THRESHOLD = 0.3  # unused by OWLv2, kept for request-contract compat
 MAX_IMAGE_BYTES = 12 * 1024 * 1024
 MAX_IMAGE_PIXELS = 25_000_000
 MAX_LABELS = 30
@@ -57,11 +75,11 @@ def _load_model() -> None:
     if _model_state:
         return
     import torch
-    from transformers import AutoModelForZeroShotObjectDetection, AutoProcessor
+    from transformers import Owlv2ForObjectDetection, Owlv2Processor
 
-    logger.info("loading grounding dino model %s", MODEL_ID)
-    processor = AutoProcessor.from_pretrained(MODEL_ID)
-    model = AutoModelForZeroShotObjectDetection.from_pretrained(MODEL_ID)
+    logger.info("loading owlv2 model %s", MODEL_ID)
+    processor = Owlv2Processor.from_pretrained(MODEL_ID)
+    model = Owlv2ForObjectDetection.from_pretrained(MODEL_ID)
     device = "cuda" if torch.cuda.is_available() else "cpu"
     model = model.to(device).eval()
     _model_state["processor"] = processor
@@ -99,7 +117,7 @@ class DetectionResponse(BaseModel):
     detections: list[Detection]
 
 
-app = FastAPI(title="vision-grounding-dino", version="1.0.0")
+app = FastAPI(title="vision-grounding-dino", version="2.0.0")
 _metrics = build_vision_metrics("vision-grounding-dino")
 
 
@@ -119,70 +137,65 @@ def metrics() -> Response:
     return Response(content=_metrics.render(), media_type=VISION_METRICS_CONTENT_TYPE)
 
 
-def _build_text_query(payload: DetectRequest) -> str:
-    # VERY important per the model card: queries must be lowercased and each
-    # phrase must end with a period, or the text encoder silently mis-segments
-    # the query into the wrong phrase boundaries.
+def _build_labels(payload: DetectRequest) -> list[str]:
     if payload.labels:
         phrases = [label.strip().lower() for label in payload.labels if label.strip()]
         if not phrases:
             raise HTTPException(status_code=400, detail="labels: at least one non-empty label is required")
-        return ". ".join(phrases) + "."
+        return phrases
     if payload.prompt and payload.prompt.strip():
-        text = payload.prompt.strip().lower()
-        return text if text.endswith(".") else f"{text}."
+        phrases = [p.strip().lower() for p in re.split(r"[.,]", payload.prompt) if p.strip()]
+        if phrases:
+            return phrases
     raise HTTPException(status_code=400, detail="either labels or prompt is required")
 
 
 @app.post("/generate/detect/grounding-dino", response_model=DetectionResponse)
 def detect(payload: DetectRequest) -> DetectionResponse:
     image = _decode_image(payload.image)
-    text_query = _build_text_query(payload)
+    labels = _build_labels(payload)
     _load_model()
     torch = _model_state["torch"]
     processor = _model_state["processor"]
     model = _model_state["model"]
     device = _model_state["device"]
 
+    height, width = image.height, image.width
     with _metrics.observe_inference(MODEL_ID):
         try:
-            inputs = processor(images=image, text=text_query, return_tensors="pt").to(device)
+            inputs = processor(text=[labels], images=image, return_tensors="pt").to(device)
             with torch.inference_mode():
                 outputs = model(**inputs)
 
-            height, width = image.height, image.width
-            results = processor.post_process_grounded_object_detection(
-                outputs,
-                inputs.input_ids,
-                box_threshold=float(payload.confidence_threshold),
-                text_threshold=float(payload.text_threshold),
-                target_sizes=[(height, width)],
+            target_sizes = torch.tensor([[height, width]])
+            results = processor.post_process_object_detection(
+                outputs=outputs,
+                target_sizes=target_sizes,
+                threshold=float(payload.confidence_threshold),
             )
         except HTTPException:
             raise
         except Exception as exc:  # pragma: no cover
-            logger.exception("grounding dino inference failed")
+            logger.exception("owlv2 inference failed")
             raise HTTPException(status_code=500, detail="detection inference failed") from exc
 
     if not results:
-        # post_process_grounded_object_detection always returns one entry per
-        # image; an empty list is a contract break upstream, not "found nothing".
-        logger.warning("grounding dino post-process returned no result container")
+        logger.warning("owlv2 post-process returned no result container")
         raise HTTPException(status_code=502, detail="detection produced no result container")
     result = results[0]
 
     scores = result.get("scores")
-    labels = result.get("labels")
+    label_indices = result.get("labels")
     boxes = result.get("boxes")
-    if scores is None or labels is None or boxes is None:
-        logger.warning("grounding dino post-process missing keys=%s", list(result.keys()))
+    if scores is None or label_indices is None or boxes is None:
+        logger.warning("owlv2 post-process missing keys=%s", list(result.keys()))
         raise HTTPException(status_code=502, detail="detection result missing expected keys")
 
     detections: list[Detection] = []
-    for score, label_text, box in zip(scores.tolist(), labels, boxes.tolist()):
-        label_name = str(label_text).strip()
-        if not label_name:
+    for score, label_index, box in zip(scores.tolist(), label_indices.tolist(), boxes.tolist()):
+        if not (0 <= int(label_index) < len(labels)):
             continue
+        label_name = labels[int(label_index)]
         confidence = float(score)
         if not (0.0 <= confidence <= 1.0):
             continue

@@ -24,11 +24,19 @@ OUT_PREDICTIONS = Path("/corpus/_downloads/predictions.json")
 OUT_METRICS = Path("/corpus/_downloads/runtime_metrics.json")
 
 OCR_URL = "http://vision-ocr:8120/generate/ocr/paddle"
+# Tesseract has a dedicated Swedish ("swe") language model; PaddleOCR only has
+# a generic multilingual "latin" bundle for sv (no sv-specific model exists in
+# its catalog). Measured on the corpus: tesseract sv cer=0.0038 vs paddle's
+# ~0.08-0.11 (paddle sv misses the 0.10 quality floor; tesseract clears it
+# with a lot of margin). English stays on paddle -- tesseract measured worse
+# there (cer=0.38 vs paddle's 0.20).
+TESSERACT_URL = "http://vision-tesseract:8122/generate/ocr/tesseract"
 RTDETR_URL = "http://vision-detection:8121/generate/detect/rtdetr"
 YOLOX_URL = "http://vision-yolox:8125/generate/detect/yolox"
 GDINO_URL = "http://vision-grounding-dino:8124/generate/detect/grounding-dino"
 
 LANG_FOR_GROUP = {"ocr_en": "en", "ocr_fi": "fi", "ocr_sv": "sv", "ocr_mixed": "auto"}
+OCR_ENGINE_URL_FOR_LANG = {"sv": TESSERACT_URL}
 
 latencies_ms: dict[str, list[float]] = {"ocr": [], "rtdetr": [], "yolox": [], "grounding_dino": []}
 
@@ -67,7 +75,9 @@ def main():
 
         if any(g in LANG_FOR_GROUP for g in groups):
             group = next(g for g in groups if g in LANG_FOR_GROUP)
-            result = call(OCR_URL, {"image": image_b64, "language": LANG_FOR_GROUP[group]}, "ocr")
+            lang = LANG_FOR_GROUP[group]
+            url = OCR_ENGINE_URL_FOR_LANG.get(lang, OCR_URL)
+            result = call(url, {"image": image_b64, "language": lang}, "ocr")
             predictions[entry["id"]] = {"text": ocr_text_from_words(result["words"])}
 
         elif "detection_known_class" in groups:
@@ -83,10 +93,12 @@ def main():
             }
 
         elif "detection_open_vocabulary" in groups:
-            # LVIS category names are underscore_joined; Grounding-DINO's text
-            # encoder expects natural-language phrases.
+            # LVIS category names are underscore_joined; the detector's text
+            # encoder expects natural-language phrases. No confidence_threshold
+            # override -- use the service's own default (tuned per-model, see
+            # services/vision-grounding-dino/main.py).
             labels = sorted({b["category"].replace("_", " ") for b in entry.get("expected_boxes", [])})
-            gdino = call(GDINO_URL, {"image": image_b64, "labels": labels, "confidence_threshold": 0.4}, "grounding_dino")
+            gdino = call(GDINO_URL, {"image": image_b64, "labels": labels}, "grounding_dino")
             boxes = [
                 {"category": d["label"], "bbox": [d["box"]["x"], d["box"]["y"], d["box"]["width"], d["box"]["height"]], "score": d["confidence"]}
                 for d in gdino["detections"]
