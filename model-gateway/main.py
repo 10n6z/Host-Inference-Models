@@ -712,3 +712,34 @@ def get_document_page(
 ):
     page_path = _resolve_page_path(claims.tenant_id, asset_id, page_index)
     return FileResponse(page_path, media_type="image/png")
+
+
+COMMERCIAL_PLANNER_URL = os.getenv("COMMERCIAL_PLANNER_URL", "http://commercial-planner:8127")
+COMMERCIAL_PLANNER_PROVIDERS = {"openai", "anthropic"}
+
+
+@app.post("/plan/{provider}")
+async def plan_with_commercial_provider(
+    provider: str,
+    body: dict,
+    claims: GatewayClaims = Depends(require_gateway_scope),
+):
+    if provider not in COMMERCIAL_PLANNER_PROVIDERS:
+        raise HTTPException(
+            status_code=404,
+            detail={"code": "UNKNOWN_PROVIDER", "message": f"No commercial planner for provider '{provider}'"},
+        )
+    async with httpx.AsyncClient(timeout=GATEWAY_TIMEOUT_SECONDS, trust_env=False) as client:
+        try:
+            upstream = await client.post(
+                f"{COMMERCIAL_PLANNER_URL}/generate/plan/{provider}",
+                json=body,
+            )
+        except httpx.HTTPError as exc:
+            raise HTTPException(
+                status_code=503,
+                detail={"code": "PROVIDER_UNAVAILABLE", "message": f"commercial-planner unreachable: {exc}"},
+            ) from exc
+    if upstream.status_code != 200:
+        raise HTTPException(status_code=upstream.status_code, detail=upstream.json())
+    return upstream.json()

@@ -32,6 +32,7 @@ services:
       # OLLAMA_BASE_URL=http://host.docker.internal:11434
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://ollama:11434}
       DOCUMENT_RASTERIZER_URL: http://document-rasterizer:8130
+      COMMERCIAL_PLANNER_URL: http://commercial-planner:8127
       MODEL_GATEWAY_JWT_SECRET: ${MODEL_GATEWAY_JWT_SECRET:-}
     volumes:
       - ${OUTPUTS_HOST_DIR:-./outputs}:/outputs
@@ -62,6 +63,7 @@ services:
       - vision-ocr
       - vision-detection
       - document-rasterizer
+      - commercial-planner
     networks:
       - model-server
 
